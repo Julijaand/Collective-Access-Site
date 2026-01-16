@@ -1,0 +1,26 @@
+# Docker
+.env
+*.log
+
+# CA application files (downloaded at build time)
+collectiveaccess/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Backups
+*.sql
+*.sql.gz
+backups/
