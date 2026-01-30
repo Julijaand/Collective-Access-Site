@@ -31,12 +31,14 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Download Collective Access
 WORKDIR /var/www/html
 RUN git clone --depth 1 --branch master \
-    https://github.com/collectiveaccess/providence.git ca \
-    && chown -R www-data:www-data /var/www/html/ca
+    https://github.com/collectiveaccess/providence.git ca
+
+# Mark repo as safe for git
+RUN git config --global --add safe.directory /var/www/html/ca
 
 # Install PHP dependencies via Composer
 WORKDIR /var/www/html/ca
-RUN composer install --no-dev --optimize-autoloader \
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-security-blocking \
     && chown -R www-data:www-data /var/www/html/ca
 
 # Copy configuration files

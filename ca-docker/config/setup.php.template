@@ -49,7 +49,7 @@ if (!defined("__CA_DEFAULT_LOCALE__")) {
 define("__CA_USE_CLEAN_URLS__", 0);
 
 if (!defined("__CA_APP_NAME__")) {
-	define("__CA_APP_NAME__", "${CA_INSTANCE_ID}");
+	define("__CA_APP_NAME__", "${CA_APP_NAME}");
 }
 
 if (!defined("__CA_GOOGLE_MAPS_KEY__")) {

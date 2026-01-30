@@ -19,7 +19,7 @@ spec:
             - containerPort: 80
           envFrom:
             - secretRef:
-                name: {{ .Values.tenantName }}-db
+                name: {{ .Release.Name }}-db
           env:
             - name: CA_TIMEZONE
               value: {{ .Values.app.timezone }}

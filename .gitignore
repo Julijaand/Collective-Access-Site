@@ -24,3 +24,13 @@ Thumbs.db
 *.sql
 *.sql.gz
 backups/
+
+# Secrets and environment files
+*.env
+.env
+.env.*
+saas-backend/saas-backend-secrets.yaml
+saas-backend/*.secrets.yaml
+ca-docker/*.secrets.yaml
+*.secrets.yaml
+k8s/mysql-root-password-secret.yaml
