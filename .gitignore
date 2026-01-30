@@ -34,3 +34,11 @@ saas-backend/*.secrets.yaml
 ca-docker/*.secrets.yaml
 *.secrets.yaml
 k8s/mysql-root-password-secret.yaml
+
+# User-specified files to ignore
+saas-backend/some_improvements.md
+PHASE_2_REPORT.md
+PHASE_3_SCENARIO.md
+ROADMAP_short.md
+ROADMAP.md
+ca-docker/file.md

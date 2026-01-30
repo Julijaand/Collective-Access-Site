@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: saas-backend
+  namespace: ca-system
+  labels:
+    app: saas-backend
+spec:
+  selector:
+    app: saas-backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

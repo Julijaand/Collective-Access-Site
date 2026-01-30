@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas-backend
+  namespace: ca-system
+  labels:
+    app: saas-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: saas-backend
+  template:
+    metadata:
+      labels:
+        app: saas-backend
+    spec:
+      serviceAccountName: saas-backend
+      containers:
+      - name: backend
+        image: julijaand/ca-saas-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: saas-backend-secrets
+              key: database-url
+
+        - name: STRIPE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: saas-backend-secrets
+              key: stripe-secret-key
+
+        - name: STRIPE_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: saas-backend-secrets
+              key: stripe-webhook-secret
+
+        - name: KUBERNETES_IN_CLUSTER
+          value: "true"
+
+        - name: HELM_CHART_PATH
+          value: "/app/k8s/helm/collectiveaccess"
+
+        - name: BASE_DOMAIN
+          value: "yoursaas.com"
+
+        - name: DB_HOST
+          value: "mysql.ca-system.svc.cluster.local"
+
+        - name: DB_PORT
+          value: "3306"
+
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: saas-backend-secrets
+              key: db-password
+
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-root-password
+              key: mysql-root-password
+
+        - name: CA_DOCKER_IMAGE
+          value: "julijaand/collectiveaccess:latest"
+
+        - name: CA_CERT_ISSUER
+          value: "letsencrypt"

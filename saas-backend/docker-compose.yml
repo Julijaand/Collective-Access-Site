@@ -1,0 +1,70 @@
+services:
+  # PostgreSQL Database for SaaS Backend Control Plane
+  postgres:
+    image: postgres:15
+    container_name: ca-saas-db
+    environment:
+      POSTGRES_DB: ca_saas
+      POSTGRES_USER: ca_saas
+      POSTGRES_PASSWORD: ca_saas_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ca_saas -d ca_saas"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ca-saas-network
+
+  # FastAPI Backend (uncomment when ready to run)
+  # backend:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: ca-saas-backend
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     - DATABASE_URL=postgresql://ca_saas:ca_saas_password@postgres:5432/ca_saas
+  #     - KUBERNETES_IN_CLUSTER=false
+  #     - BASE_DOMAIN=yoursaas.com
+  #     # Add other environment variables from .env file
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./app:/app/app  # Hot reload for development
+  #     - ~/.kube:/root/.kube:ro  # Kubernetes config
+  #   networks:
+  #     - ca-saas-network
+  #   restart: unless-stopped
+  #   command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # pgAdmin (optional - database management UI)
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: ca-saas-pgadmin
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@yoursaas.com
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #   ports:
+  #     - "5050:80"
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - ca-saas-network
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  ca-saas-network:
+    driver: bridge
