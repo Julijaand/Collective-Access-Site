@@ -2,6 +2,10 @@
 .env
 *.log
 
+# Python virtual environments
+venv/
+.venv/
+
 # CA application files (downloaded at build time)
 collectiveaccess/
 
