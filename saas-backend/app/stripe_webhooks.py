@@ -90,28 +90,35 @@ class StripeWebhookHandler:
         customer_id = session.get("customer")
         subscription_id = session.get("subscription")
         customer_email = session.get("customer_email") or session.get("customer_details", {}).get("email")
-        
+        metadata = session.get("metadata") or {}
+
         # Get subscription details from Stripe
         subscription = stripe.Subscription.retrieve(subscription_id)
         plan_id = subscription["items"]["data"][0]["price"]["id"]
-        
-        # Map Stripe price ID to plan name (you'll need to set these in Stripe)
+
+        # Map Stripe price ID to plan name (keep in sync with billing.py)
         plan_mapping = {
-            # Update these with your actual Stripe price IDs
             "price_1SrGI3PcAaj5IlzyqjJ9kioz": "starter",
             "price_1SrGJJPcAaj5Ilzy0KOKspNI": "pro",
-            "price_1SrGJsPcAaj5IlzyBbgP2Ys4": "museum"
+            "price_1SrGJsPcAaj5IlzyBbgP2Ys4": "museum",
         }
-        
+
         plan = plan_mapping.get(plan_id, "starter")
-        
-        # Get or create user (simplified - you'll want proper user management)
+
+        # Resolve user — prefer user_id from checkout metadata (most reliable)
         from .models import User
-        user = self.db.query(User).filter(User.email == customer_email).first()
+        user_id_meta = metadata.get("user_id")
+        user = None
+        if user_id_meta:
+            try:
+                user = self.db.query(User).filter(User.id == int(user_id_meta)).first()
+            except (ValueError, TypeError):
+                pass
+        if not user and customer_email:
+            user = self.db.query(User).filter(User.email == customer_email).first()
         if not user:
-            user = User(email=customer_email, password_hash="set_via_oauth_or_registration")
-            self.db.add(user)
-            self.db.commit()
+            logger.error(f"Cannot find user for checkout session (email={customer_email}, meta_user_id={user_id_meta})")
+            return
         
         # Provision tenant
         logger.info(f"Provisioning tenant for {customer_email} (plan: {plan})")

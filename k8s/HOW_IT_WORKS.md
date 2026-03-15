@@ -12,7 +12,6 @@ This Helm chart deploys a single Collective Access tenant as isolated Kubernetes
 k8s/
 ├── README.md                      # Step-by-step deployment guide
 ├── HOW_IT_WORKS.md               # This file - architecture explanation
-├── SIMPLIFIED_STRUCTURE.md       # Simplification documentation
 ├── selfsigned-issuer.yaml        # ClusterIssuer for local testing
 ├── letsencrypt-issuer.yaml       # ClusterIssuer for production
 ├── mysql-deployment.yaml         # Shared MySQL database

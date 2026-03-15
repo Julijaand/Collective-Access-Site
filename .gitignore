@@ -46,3 +46,21 @@ PHASE_3_SCENARIO.md
 ROADMAP_short.md
 ROADMAP.md
 ca-docker/file.md
+phase_4_frontend/
+customer-portal/structure.md
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.next/
+out/
+dist/
+build/

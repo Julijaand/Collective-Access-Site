@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-portal
+  namespace: ca-system
+  labels:
+    app: customer-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customer-portal
+  template:
+    metadata:
+      labels:
+        app: customer-portal
+    spec:
+      containers:
+      - name: portal
+        image: julijaand/ca-customer-portal:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        envFrom:
+        - configMapRef:
+            name: customer-portal-config
+        env:
+        - name: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: customer-portal-secret
+              key: stripe-publishable-key
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 20
+          periodSeconds: 30

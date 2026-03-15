@@ -78,6 +78,11 @@ class Tenant(Base):
     subscription = relationship("Subscription", back_populates="tenant", uselist=False)
     provisioning_logs = relationship("ProvisioningLog", back_populates="tenant")
 
+    @property
+    def name(self) -> str:
+        """Human-readable display name (defaults to namespace until a name column is added)."""
+        return self.namespace
+
 
 class Subscription(Base):
     """Stripe subscription tracking"""
