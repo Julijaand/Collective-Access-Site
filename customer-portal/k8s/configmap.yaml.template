@@ -1,0 +1,12 @@
+# Copy to configmap.yaml and fill in your values
+# cp configmap.yaml.template configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: customer-portal-config
+  namespace: ca-system
+data:
+  NEXT_PUBLIC_API_URL: "https://api.YOUR_DOMAIN"
+  NEXT_PUBLIC_WS_URL: "wss://api.YOUR_DOMAIN"
+  NEXT_PUBLIC_APP_NAME: "Collective Access Portal"
+  NEXT_PUBLIC_APP_URL: "https://portal.YOUR_DOMAIN"

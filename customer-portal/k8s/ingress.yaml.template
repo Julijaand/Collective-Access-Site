@@ -1,0 +1,27 @@
+# Copy to ingress.yaml and fill in your domain
+# cp ingress.yaml.template ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: customer-portal-ingress
+  namespace: ca-system
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  tls:
+    - hosts:
+        - portal.YOUR_DOMAIN
+      secretName: customer-portal-tls
+  rules:
+    - host: portal.YOUR_DOMAIN
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: customer-portal
+                port:
+                  number: 3000

@@ -21,6 +21,9 @@ from .schemas import (
 from .provisioning import TenantProvisioner
 from .stripe_webhooks import StripeWebhookHandler
 from .k8s import KubernetesManager
+from .auth import router as auth_router
+from .tenants import router as tenants_router
+from .billing import router as billing_router
 
 # Configure logging
 logging.basicConfig(
@@ -44,6 +47,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Auth routes
+app.include_router(auth_router)
+
+# Tenant routes (authenticated, user-scoped)
+app.include_router(tenants_router)
+
+# Billing routes (Stripe Checkout, Portal, Invoices, Subscriptions)
+app.include_router(billing_router)
 
 
 # ============================================================================
