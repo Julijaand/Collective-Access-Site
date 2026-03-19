@@ -14,22 +14,25 @@ Browser
    │
    │ HTTPS
    ▼
-portal.yourdomain.com          ← Next.js (Vercel or K8s)
+portal.<MINIKUBE_IP>.nip.io          ← Next.js (K8s, local)
+portal.yourdomain.com               ← Next.js (K8s, production)
    │
-   │ HTTPS (REST / WebSocket)
+   │ HTTPS (REST)
    ▼
-api.yourdomain.com             ← saas-backend Ingress (ca-system namespace)
+api.portal.<MINIKUBE_IP>.nip.io      ← saas-backend Ingress (local)
+api.portal.yourdomain.com           ← saas-backend Ingress (production)
    │
    ▼
-saas-backend ClusterIP :8000   ← FastAPI (K8s, ca-system)
+saas-backend ClusterIP :8000        ← FastAPI (K8s, ca-system)
    │
-   ├── PostgreSQL               ← K8s (ca-system)
+   ├── PostgreSQL                   ← K8s (ca-system) — backend metadata
+   ├── MySQL                        ← K8s (ca-system) — per-tenant CA databases
    ├── Stripe API
-   └── K8s API
+   └── K8s API (Helm)
           │
-          ├── ca-tenant-abc    ← CA instance per tenant
-          ├── ca-tenant-xyz
-          └── ...
+          ├── tenant-abc123        ← CA instance, own namespace
+          ├── tenant-def456
+          └── ...  (1 tenant per subscription)
 ```
 
 ---
@@ -125,108 +128,16 @@ curl http://localhost:8000/health
 
 Open http://localhost:3000
 
----
+## Kubernetes Deployment
 
-## Project Structure
-
-```
-customer-portal/
-├── src/
-│   ├── app/                        # Next.js App Router
-│   │   ├── (auth)/                 # Unauthenticated routes
-│   │   │   ├── login/page.tsx
-│   │   │   ├── signup/page.tsx
-│   │   │   ├── forgot-password/page.tsx
-│   │   │   └── layout.tsx          # Centered auth layout
-│   │   ├── (dashboard)/            # Protected routes
-│   │   │   ├── dashboard/page.tsx  # Overview
-│   │   │   ├── tenants/
-│   │   │   │   ├── page.tsx        # Tenant list
-│   │   │   │   └── [id]/page.tsx   # Tenant detail + metrics
-│   │   │   ├── billing/page.tsx    # Plans, invoices, payment methods
-│   │   │   ├── team/page.tsx       # Members, invites, roles
-│   │   │   ├── support/
-│   │   │   │   ├── page.tsx        # Ticket list
-│   │   │   │   └── [id]/page.tsx   # Ticket conversation
-│   │   │   ├── backups/page.tsx    # Backup list + restore
-│   │   │   └── layout.tsx          # Sidebar + header layout
-│   │   ├── layout.tsx              # Root layout + providers
-│   │   └── globals.css
-│   ├── components/
-│   │   ├── auth/                   # LoginForm, SignupForm, OAuthButtons
-│   │   ├── dashboard/              # Sidebar, Header, MobileMenu
-│   │   ├── tenant/                 # TenantCard, ResourceUsage, StatusBadge
-│   │   ├── billing/                # PricingCards, InvoiceList, PaymentMethod
-│   │   ├── team/                   # TeamMemberList, InviteModal, RoleSelector
-│   │   ├── support/                # TicketList, CreateTicketModal, Conversation
-│   │   ├── backup/                 # BackupList, RestoreModal, Schedule
-│   │   └── ui/                     # shadcn/ui components
-│   ├── lib/
-│   │   ├── api/
-│   │   │   ├── client.ts           # Axios + JWT interceptors + auto-refresh
-│   │   │   ├── auth.ts
-│   │   │   ├── tenants.ts
-│   │   │   ├── billing.ts
-│   │   │   ├── team.ts
-│   │   │   ├── support.ts
-│   │   │   └── backups.ts
-│   │   ├── hooks/
-│   │   │   ├── useAuth.ts
-│   │   │   ├── useTenants.ts
-│   │   │   ├── useSubscription.ts
-│   │   │   └── useRealtime.ts      # WebSocket hook
-│   │   └── stores/
-│   │       ├── authStore.ts        # Zustand auth + token management
-│   │       └── uiStore.ts          # Sidebar state, notifications
-│   └── types/
-│       ├── auth.ts
-│       ├── tenant.ts
-│       ├── subscription.ts
-│       ├── team.ts
-│       └── ticket.ts
-├── .env.local                      # Local secrets (git-ignored)
-├── .env.example                    # Template for team / CI
-├── next.config.ts
-├── tailwind.config.ts
-└── tsconfig.json
-```
-
----
-
-## Production Deployment
-
-### Option A — Vercel (Recommended)
-
-Simplest deployment — zero config needed.
-
-```bash
-npm install -g vercel
-vercel login
-vercel --prod
-```
-
-Set environment variables in the Vercel dashboard:
-```
-NEXT_PUBLIC_API_URL                = https://api.yourdomain.com
-NEXT_PUBLIC_WS_URL                 = wss://api.yourdomain.com
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = pk_live_...
-NEXT_PUBLIC_APP_URL                = https://portal.yourdomain.com
-```
-
----
-
-### Option B — Kubernetes (Same Cluster as Backend)
-
-#### Step 1 — Build & Push Docker Image
+### Step 1 — Build & Push Docker Image
 
 ```bash
 docker build -t julijaand/ca-customer-portal:latest .
 docker push julijaand/ca-customer-portal:latest
 ```
 
-#### Step 2 — Configure K8s manifests
-
-Copy and fill in the config files before deploying:
+### Step 2 — Configure K8s manifests
 
 ```bash
 # ConfigMap — public URLs (edit domain to match your setup)
@@ -238,10 +149,10 @@ cp k8s/portal-secret.yaml.template k8s/portal-secret.yaml
 nano k8s/portal-secret.yaml   # base64-encode your key: echo -n "pk_live_..." | base64
 
 # Ingress — domain
-nano k8s/ingress.yaml   # update host: portal.yourdomain.com
+nano k8s/ingress.yaml   # update host: portal.<MINIKUBE_IP>.nip.io (local) or portal.yourdomain.com (prod)
 ```
 
-#### Step 3 — Deploy to K8s
+### Step 3 — Deploy
 
 ```bash
 kubectl apply -f k8s/configmap.yaml
@@ -251,60 +162,78 @@ kubectl apply -f k8s/service.yaml
 kubectl apply -f k8s/ingress.yaml
 ```
 
-Verify everything is running:
+Verify:
 ```bash
 kubectl get pods -n ca-system -l app=customer-portal
 kubectl get ingress -n ca-system
-kubectl get certificate -n ca-system
-# customer-portal-tls should be READY = True
+kubectl get certificate -n ca-system   # customer-portal-tls should be READY = True
 ```
 
 ---
 
-#### Step 4 — Local Access via Minikube (Docker Driver)
+## Local Access via Minikube
 
-> **Why port-forward?** Minikube with the Docker driver runs inside an isolated Docker network — the node IP (`192.168.49.2`) is not directly reachable from macOS. `kubectl port-forward` bridges the gap.
+> **Why port-forward?** Minikube with the Docker driver runs inside an isolated Docker network — the node IP is not directly reachable from macOS. `kubectl port-forward` bridges the gap.
 
-> ℹ️ `minikube tunnel` is **not needed** here — it only helps for `LoadBalancer` services. The ingress controller uses `NodePort`.
+> ℹ️ `minikube tunnel` is **not needed** — it only helps for `LoadBalancer` services. The ingress controller uses `NodePort`.
 
-**1. Add hostnames to `/etc/hosts` pointing to `127.0.0.1`:**
+**1. Get your Minikube IP:**
 
 ```bash
-# Portal + backend API
-echo "127.0.0.1  portal.192.168.49.2.nip.io api.portal.192.168.49.2.nip.io" | sudo tee -a /etc/hosts
-
-# Tenant CA apps (add all active tenants)
-echo "127.0.0.1  tenant-abc123.yoursaas.com tenant-def456.yoursaas.com" | sudo tee -a /etc/hosts
-
-# Check all active tenant hostnames with:
-# kubectl get ingress -A | grep tenant
+MINIKUBE_IP=$(minikube ip)
+echo $MINIKUBE_IP   # e.g. 192.168.49.2
 ```
 
-**2. Start the ingress controller port-forward (keep this terminal open):**
+**2. One-time: install dnsmasq for automatic wildcard DNS (no manual `/etc/hosts` per tenant)**
+
+```bash
+brew install dnsmasq
+
+# Route all *.<MINIKUBE_IP>.nip.io to localhost (where port-forward listens)
+echo "address=/${MINIKUBE_IP}.nip.io/127.0.0.1" | sudo tee /opt/homebrew/etc/dnsmasq.conf
+
+# Tell macOS to use dnsmasq for this domain
+sudo mkdir -p /etc/resolver
+echo "nameserver 127.0.0.1" | sudo tee /etc/resolver/${MINIKUBE_IP}.nip.io
+
+# Start dnsmasq as a system service
+sudo brew services start dnsmasq
+
+# Verify it works (should return 127.0.0.1)
+dig +short test-tenant.${MINIKUBE_IP}.nip.io @127.0.0.1
+```
+
+After this, **every** new tenant subdomain resolves automatically — no `/etc/hosts` changes needed.
+
+**3. Portal & API — add once to `/etc/hosts`** (these use a fixed hostname):
+
+```bash
+echo "127.0.0.1  portal.${MINIKUBE_IP}.nip.io api.portal.${MINIKUBE_IP}.nip.io" | sudo tee -a /etc/hosts
+```
+
+**4. Start the ingress controller port-forward (keep this terminal open):**
 
 ```bash
 sudo kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 80:80 443:443
 ```
 
-This single port-forward covers **all** services — portal, backend API, and all tenant CA apps.
+This single port-forward covers **all** services — portal, backend API, and every tenant CA app. dnsmasq handles DNS resolution; the port-forward handles the actual traffic routing to nginx.
 
 **Access:**
 | Service | URL |
 |---------|-----|
-| Customer Portal | https://portal.192.168.49.2.nip.io |
-| Tenant CA app | https://tenant-abc123.yoursaas.com |
+| Customer Portal | `https://portal.${MINIKUBE_IP}.nip.io` |
+| Backend API | `https://api.portal.${MINIKUBE_IP}.nip.io` |
+| Tenant CA app | `https://tenant-XXXXXXXX.${MINIKUBE_IP}.nip.io` |
 
 > ⚠️ Browser will show a **self-signed certificate warning** — click **Advanced → Proceed** to continue.
 
----
+### TLS Certificate Troubleshooting (Local)
 
-#### Step 5 — TLS Certificate Troubleshooting (Local)
+Let's Encrypt **will not work locally** — it requires a publicly reachable domain. Use the self-signed ClusterIssuer instead.
 
-Let's Encrypt (`letsencrypt-prod`) **will not work locally** — it requires a publicly reachable domain. Use the self-signed ClusterIssuer instead.
-
-Check your ingress annotation:
 ```bash
-# Should reference your local self-signed issuer name
+# Check available issuers
 kubectl get clusterissuer
 # e.g. NAME = selfsigned
 
@@ -314,34 +243,114 @@ kubectl get clusterissuer
 
 If certificate is stuck (`READY: False`):
 ```bash
-# 1. Fix the issuer name in ingress.yaml if needed, then:
 kubectl delete certificate customer-portal-tls -n ca-system --ignore-not-found
 kubectl delete secret customer-portal-tls -n ca-system --ignore-not-found
 kubectl apply -f k8s/ingress.yaml
 
-# 2. Verify it becomes ready (takes ~10s)
+# Verify it becomes ready (takes ~10s)
 kubectl get certificate -n ca-system
 ```
 
 ---
 
-#### Step 6 — Tenant CA Apps
+## Production Deployment
 
-Each provisioned tenant gets a CA instance accessible via its own subdomain. To access a tenant:
+### 1. DNS — Wildcard record (one-time setup)
+
+In your DNS provider (Cloudflare recommended):
+
+| Type | Name | Value |
+|------|------|-------|
+| A | `portal` | `<cluster external IP>` |
+| A | `api.portal` | `<cluster external IP>` |
+| A | `*` (wildcard) | `<cluster external IP>` |
+
+The wildcard `*` record means every new tenant subdomain (`tenant-abc123.yoursaas.com`) resolves automatically — no DNS changes needed per tenant.
+
+```bash
+# Get your cluster external IP
+kubectl get svc ingress-nginx-controller -n ingress-nginx
+# Copy EXTERNAL-IP column
+```
+
+### 2. Switch backend env vars
+
+Edit `saas-backend/k8s/deployment.yaml`:
+
+```yaml
+- name: BASE_DOMAIN
+  value: "yoursaas.com"    # your real domain (tenants get tenant-xyz.yoursaas.com)
+
+- name: CA_CERT_ISSUER
+  value: "letsencrypt"     # issues real TLS certs automatically per tenant
+```
+
+> ⚠️ In local dev these are `BASE_DOMAIN=$(minikube ip).nip.io` and `CA_CERT_ISSUER=selfsigned`. **Do not use `letsencrypt` locally** — it requires a publicly reachable domain and will fail.
+
+Also update `k8s/ingress.yaml` in both `saas-backend/` and `customer-portal/` — change the `cert-manager.io/cluster-issuer` annotation from `selfsigned` to `letsencrypt` and update the hostnames to your real domain.
+
+### 3. Stripe webhooks
+
+In local dev, webhooks from Stripe cannot reach the cluster — the portal uses the `/billing/checkout/confirm` polling fallback instead.
+
+In production, register a real webhook endpoint in the [Stripe Dashboard](https://dashboard.stripe.com/webhooks):
+```
+https://api.portal.yourdomain.com/webhooks/stripe
+```
+Events needed: `checkout.session.completed`, `customer.subscription.deleted`
+
+Update the webhook secret in `saas-backend/k8s/saas-backend-secrets.yaml`:
+```bash
+echo -n "whsec_your_live_secret" | base64
+# Paste into saas-backend-secrets.yaml → stripe-webhook-secret
+kubectl apply -f saas-backend/k8s/saas-backend-secrets.yaml
+```
+
+### 4. Deploy
+
+```bash
+# Backend
+cd saas-backend
+docker build -t julijaand/ca-saas-backend:latest .
+docker push julijaand/ca-saas-backend:latest
+kubectl apply -f k8s/deployment.yaml
+kubectl rollout restart deployment/saas-backend -n ca-system
+
+# Portal
+cd customer-portal
+docker build -t julijaand/ca-customer-portal:latest .
+docker push julijaand/ca-customer-portal:latest
+kubectl apply -f k8s/
+kubectl rollout restart deployment/customer-portal -n ca-system
+```
+
+### 5. Verify
+
+```bash
+kubectl get pods -n ca-system
+kubectl get ingress -n ca-system
+kubectl get certificate -n ca-system   # all should show READY = True
+```
+
+---
+
+## Operations
+
+### Accessing Tenant CA Apps
+
+Each provisioned tenant gets a CA instance accessible via its own subdomain:
 
 ```bash
 # List all tenant ingresses and their URLs
 kubectl get ingress -A | grep tenant
 ```
 
-If the tenant URL shows a blank page or CA installer, the **installation wizard has not been completed yet**.  
-Run the installer at: `https://tenant-abc123.yoursaas.com/install/index.php`
+If the tenant URL shows the CA installer, the setup wizard has not been completed yet.
+Run it at: `https://tenant-XXXXXXXX.<your-domain>/install/index.php`
 
 After installation completes, log in with `username: administrator` and the password shown at the end of the wizard.
 
----
-
-#### Step 7 — Deleting a Tenant
+### Deleting a Tenant
 
 ```bash
 # 1. Uninstall Helm release + delete namespace
@@ -349,34 +358,14 @@ helm uninstall tenant-abc123 -n tenant-abc123
 kubectl delete namespace tenant-abc123
 
 # 2. Drop MySQL database
-kubectl exec -n ca-system mysql-6b8f8f6668-lv7kw -- \
-  mysql -u root -prootpassword123 -e "DROP DATABASE IF EXISTS ca_abc123;"
+kubectl exec -n ca-system <mysql-pod> -- \
+  mysql -u root -p<root-password> -e "DROP DATABASE IF EXISTS ca_abc123;"
 
 # 3. Remove from PostgreSQL
-kubectl exec -n ca-system ca-saas-db-c58f44986-r5xfh -- \
+kubectl exec -n ca-system <postgres-pod> -- \
   psql -U ca_saas -d ca_saas -c \
   "DELETE FROM tenants WHERE namespace = 'tenant-abc123';"
 ```
-
----
-
-### Step 8 — Production DNS Configuration
-
-In your DNS provider (Cloudflare recommended):
-
-| Type | Name | Value |
-|------|------|-------|
-| A | `portal` | `<K8s cluster external IP>` |
-| A | `api.portal` | `<K8s cluster external IP>` |
-| A | `*.yoursaas.com` | `<K8s cluster external IP>` |
-
-Get your cluster external IP:
-```bash
-kubectl get svc ingress-nginx-controller -n ingress-nginx
-# Copy EXTERNAL-IP column
-```
-
-Switch cert-manager issuer to `letsencrypt-prod` in `k8s/ingress.yaml` for production TLS.
 
 ---
 
@@ -437,12 +426,14 @@ The API client (`src/lib/api/client.ts`) handles:
 - [x] All npm dependencies installed
 - [x] Environment variables configured
 - [x] saas-backend K8s Ingress created (`../saas-backend/k8s/ingress.yaml`)
-- [ ] TypeScript types
-- [ ] API client + auth store
-- [ ] Auth pages (login / signup / forgot password)
-- [ ] Dashboard layout (sidebar + header)
-- [ ] Tenant management pages
-- [ ] Billing & subscription pages
+- [x] TypeScript types (`src/types/`)
+- [x] API client + auth store (`src/lib/api/`, `src/stores/`)
+- [x] Auth pages (login / signup)
+- [x] Dashboard layout (sidebar + header)
+- [x] Billing & subscription pages (Stripe Checkout + confirm flow)
+- [x] Overview page — active instance card, plan & status stats
+- [x] Automatic tenant provisioning on payment (1 subscription = 1 tenant)
+- [x] Local wildcard DNS via dnsmasq (no manual /etc/hosts per tenant)
 - [ ] Team management page
 - [ ] Support tickets page
 - [ ] Backups page

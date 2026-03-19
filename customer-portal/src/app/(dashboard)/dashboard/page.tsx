@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { ExternalLink, RefreshCw } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutGrid, Database, CreditCard, Users } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { CreditCard, Server, Users } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -21,14 +22,18 @@ function StatCard({
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        {loading ? (
-          <Skeleton className="h-8 w-24" />
-        ) : (
-          <p className="text-2xl font-bold">{value}</p>
-        )}
+        {loading ? <Skeleton className="h-8 w-24" /> : <p className="text-2xl font-bold capitalize">{value}</p>}
       </CardContent>
     </Card>
   )
+}
+
+const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  active: 'default',
+  provisioning: 'secondary',
+  suspended: 'destructive',
+  error: 'destructive',
+  deleting: 'outline',
 }
 
 export default function DashboardPage() {
@@ -44,25 +49,29 @@ export default function DashboardPage() {
     queryFn: billingApi.getSubscription,
   })
 
-  const activeTenants = tenants?.filter((t) => t.status === 'active').length ?? 0
-  const totalTenants = tenants?.length ?? 0
+  // 1 subscription = 1 tenant
+  const tenant = tenants?.[0] ?? null
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Welcome back, {user?.email?.split('@')[0] ?? 'there'} 👋</h1>
-        <p className="text-muted-foreground mt-1">Here's an overview of your Collective Access instances.</p>
+        <p className="text-muted-foreground mt-1">Here's an overview of your Collective Access account.</p>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Instances" value={totalTenants} icon={LayoutGrid} loading={tenantsLoading} />
-        <StatCard title="Active Instances" value={activeTenants} icon={Database} loading={tenantsLoading} />
+      <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
           title="Current Plan"
-          value={subscription?.plan ?? '—'}
+          value={subscription?.plan ?? (subLoading ? '' : 'No plan')}
           icon={CreditCard}
           loading={subLoading}
+        />
+        <StatCard
+          title="Instance Status"
+          value={tenant?.status ?? (tenantsLoading ? '' : 'Not provisioned')}
+          icon={Server}
+          loading={tenantsLoading}
         />
         <StatCard
           title="Member Since"
@@ -72,39 +81,49 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Recent Tenants */}
+      {/* Instance card */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Your Instances</CardTitle>
-          <Button asChild size="sm">
-            <Link href="/tenants">View all</Link>
-          </Button>
+        <CardHeader>
+          <CardTitle>Your Instance</CardTitle>
+          <CardDescription>Your dedicated Collective Access installation</CardDescription>
         </CardHeader>
         <CardContent>
           {tenantsLoading ? (
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-            </div>
-          ) : tenants?.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No instances yet.</p>
-              <Button asChild className="mt-4">
-                <Link href="/tenants">Create your first instance</Link>
+            <Skeleton className="h-20 w-full" />
+          ) : !tenant ? (
+            <div className="flex flex-col items-center py-8 text-center gap-3">
+              <p className="text-muted-foreground">No instance yet.</p>
+              <p className="text-sm text-muted-foreground">
+                Purchase a subscription on the Billing page and your instance will be provisioned automatically.
+              </p>
+              <Button asChild className="mt-2">
+                <Link href="/billing">Go to Billing</Link>
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {tenants?.slice(0, 5).map((tenant) => (
-                <div key={tenant.id} className="flex items-center justify-between rounded-lg border px-4 py-3">
-                  <div>
-                    <p className="font-medium text-sm">{tenant.name}</p>
-                    <p className="text-xs text-muted-foreground">{tenant.domain}</p>
-                  </div>
-                  <Badge variant={tenant.status === 'active' ? 'default' : 'secondary'}>
-                    {tenant.status}
-                  </Badge>
+            <div className="flex items-center justify-between rounded-lg border px-4 py-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">{tenant.namespace}</p>
+                  <Badge variant={STATUS_VARIANT[tenant.status] ?? 'secondary'}>{tenant.status}</Badge>
                 </div>
-              ))}
+                <p className="text-sm text-muted-foreground">{tenant.domain}</p>
+
+              </div>
+              <div className="flex gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/tenants/${tenant.id}`}>
+                    <RefreshCw className="mr-1 h-3 w-3" /> Details
+                  </Link>
+                </Button>
+                {tenant.status === 'active' && (
+                  <Button asChild size="sm">
+                    <a href={`https://${tenant.domain}`} target="_blank" rel="noreferrer">
+                      <ExternalLink className="mr-1 h-3 w-3" /> Open
+                    </a>
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </CardContent>

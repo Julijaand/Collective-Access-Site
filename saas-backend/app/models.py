@@ -39,6 +39,7 @@ class User(Base):
     
     # Relationships
     tenants = relationship("Tenant", back_populates="user")
+    team_memberships = relationship("TeamMember", back_populates="user")
 
 
 class Tenant(Base):
@@ -51,7 +52,7 @@ class Tenant(Base):
     # Kubernetes identifiers
     namespace = Column(String, unique=True, nullable=False, index=True)
     helm_release_name = Column(String, nullable=False)
-    
+
     # Domain and access
     domain = Column(String, unique=True, nullable=False)
     
@@ -77,10 +78,11 @@ class Tenant(Base):
     user = relationship("User", back_populates="tenants")
     subscription = relationship("Subscription", back_populates="tenant", uselist=False)
     provisioning_logs = relationship("ProvisioningLog", back_populates="tenant")
+    team_members = relationship("TeamMember", back_populates="tenant")
 
     @property
     def name(self) -> str:
-        """Human-readable display name (defaults to namespace until a name column is added)."""
+        """Human-readable display name."""
         return self.namespace
 
 
@@ -108,6 +110,27 @@ class Subscription(Base):
     
     # Relationships
     tenant = relationship("Tenant", back_populates="subscription")
+
+
+class TeamMember(Base):
+    """Portal team members — who can access the SaaS portal for this tenant"""
+    __tablename__ = "team_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # None for pending invites
+
+    email = Column(String, nullable=False)
+    name = Column(String, nullable=False)
+    role = Column(String, nullable=False)          # owner | admin | editor | viewer
+    status = Column(String, nullable=False, default="pending")  # active | pending
+
+    invited_at = Column(DateTime, default=datetime.utcnow)
+    joined_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    tenant = relationship("Tenant", back_populates="team_members")
+    user = relationship("User", back_populates="team_memberships")
 
 
 class ProvisioningLog(Base):

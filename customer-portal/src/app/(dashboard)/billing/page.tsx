@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useSubscription, useInvoices, useUpgradePlan } from '@/lib/hooks/useSubscription'
+import { useSubscription, useInvoices } from '@/lib/hooks/useSubscription'
 import { billingApi } from '@/lib/api/billing'
 import { PLANS, type PlanId } from '@/types/subscription'
 
@@ -23,7 +23,6 @@ export default function BillingPage() {
   const searchParams = useSearchParams()
   const { data: subscription, isLoading: subLoading, refetch: refetchSub } = useSubscription()
   const { data: invoices, isLoading: invLoading } = useInvoices()
-  const upgradePlan = useUpgradePlan()
   const [portalLoading, setPortalLoading] = useState(false)
 
   // Subscribe dialog state
@@ -31,10 +30,28 @@ export default function BillingPage() {
   const [tenantName, setTenantName] = useState('')
   const [checkoutLoading, setCheckoutLoading] = useState(false)
 
-  // Handle ?success=1 redirect from Stripe
+  // Handle ?success=1 redirect from Stripe — confirm and provision tenant
   useEffect(() => {
-    if (searchParams.get('success') === '1') {
-      toast.success('Payment successful! Your instance is being provisioned — check the Instances page in a few minutes.')
+    if (searchParams.get('success') !== '1') return
+    const sessionId = searchParams.get('session_id')
+    if (sessionId) {
+      billingApi.confirmCheckout(sessionId)
+        .then((res) => {
+          if (res.status === 'provisioned') {
+            toast.success('Payment successful! Your instance is being provisioned — check the Instances page in a few minutes.')
+          } else if (res.status === 'already_provisioned') {
+            toast.success('Payment confirmed — your instance is already provisioned.')
+          } else {
+            toast.info('Payment received. Provisioning will complete shortly.')
+          }
+        })
+        .catch(() => {
+          toast.success('Payment successful! Your instance is being provisioned — check the Instances page in a few minutes.')
+        })
+        .finally(() => refetchSub())
+    } else {
+      // Returning from Customer Portal (upgrade/cancel) — no session_id
+      toast.success('Subscription updated successfully.')
       refetchSub()
     }
   }, [searchParams, refetchSub])
@@ -46,6 +63,19 @@ export default function BillingPage() {
       window.location.href = url
     } catch {
       toast.error('Could not open billing portal')
+    } finally {
+      setPortalLoading(false)
+    }
+  }
+
+  const openPortalForUpgrade = async (plan: PlanId) => {
+    if (!subscription) return
+    setPortalLoading(true)
+    try {
+      const url = await billingApi.createPortalSession({ subscriptionId: subscription.id })
+      window.location.href = url
+    } catch {
+      toast.error('Could not open upgrade page')
     } finally {
       setPortalLoading(false)
     }
@@ -148,14 +178,14 @@ export default function BillingPage() {
                       <a href="mailto:sales@yourdomain.com">Contact sales</a>
                     </Button>
                   ) : subscription ? (
-                    /* Existing subscriber: upgrade / switch */
+                    /* Existing subscriber: redirect to Stripe portal upgrade flow */
                     <Button
                       className="w-full"
                       variant="outline"
-                      onClick={() => upgradePlan.mutate({ subscriptionId: subscription.id, plan: plan.id })}
-                      disabled={upgradePlan.isPending}
+                      onClick={() => openPortalForUpgrade(plan.id)}
+                      disabled={portalLoading}
                     >
-                      {upgradePlan.isPending ? <RefreshCw className="mr-2 h-3 w-3 animate-spin" /> : null}
+                      {portalLoading ? <RefreshCw className="mr-2 h-3 w-3 animate-spin" /> : null}
                       {isHigher ? 'Upgrade' : 'Switch'}
                     </Button>
                   ) : (
@@ -249,164 +279,6 @@ export default function BillingPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  )
-}
-
-
-export default function BillingPage() {
-  const { data: subscription, isLoading: subLoading } = useSubscription()
-  const { data: invoices, isLoading: invLoading } = useInvoices()
-  const upgradePlan = useUpgradePlan()
-  const [portalLoading, setPortalLoading] = useState(false)
-
-  const openPortal = async () => {
-    setPortalLoading(true)
-    try {
-      const url = await billingApi.createPortalSession()
-      window.location.href = url
-    } catch {
-      toast.error('Could not open billing portal')
-    } finally {
-      setPortalLoading(false)
-    }
-  }
-
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Billing & Plans</h1>
-        <p className="text-muted-foreground mt-1">Manage your subscription and payment details.</p>
-      </div>
-
-      {/* Current Plan */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Current Plan</CardTitle>
-            <CardDescription>Your active subscription</CardDescription>
-          </div>
-          <Button variant="outline" onClick={openPortal} disabled={portalLoading}>
-            {portalLoading
-              ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              : <ExternalLink className="mr-2 h-4 w-4" />}
-            Manage Billing
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {subLoading ? (
-            <Skeleton className="h-10 w-48" />
-          ) : subscription ? (
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-xl font-bold capitalize">{subscription.plan}</p>
-                <p className="text-sm text-muted-foreground">
-                  Renews {new Date(subscription.current_period_end).toLocaleDateString()}
-                </p>
-              </div>
-              <Badge variant={subscription.status === 'active' ? 'default' : 'secondary'}>
-                {subscription.status}
-              </Badge>
-            </div>
-          ) : (
-            <p className="text-muted-foreground">No active subscription.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Plans */}
-      <div>
-        <h2 className="text-lg font-semibold mb-4">Available Plans</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {PLANS.map((plan) => {
-            const isCurrent = subscription?.plan === plan.id
-            return (
-              <Card key={plan.id} className={isCurrent ? 'border-primary ring-1 ring-primary' : ''}>
-                <CardHeader>
-                  <CardTitle className="text-base">{plan.name}</CardTitle>
-                  <p className="text-2xl font-bold">
-                    {plan.price_eur !== null ? `€${plan.price_eur}` : 'Custom'}
-                    {plan.price_eur !== null && <span className="text-sm font-normal text-muted-foreground">/mo</span>}
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <ul className="space-y-1 text-sm">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-center gap-2">
-                        <Check className="h-3 w-3 text-green-500 shrink-0" /> {f}
-                      </li>
-                    ))}
-                  </ul>
-                  {isCurrent ? (
-                    <Button className="w-full" disabled>Current plan</Button>
-                  ) : plan.id === 'enterprise' ? (
-                    <Button className="w-full" variant="outline" asChild>
-                      <a href="mailto:sales@yourdomain.com">Contact sales</a>
-                    </Button>
-                  ) : (
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      onClick={() => subscription && upgradePlan.mutate({ subscriptionId: subscription.id, plan: plan.id })}
-                      disabled={upgradePlan.isPending || !subscription}
-                    >
-                      {upgradePlan.isPending ? <RefreshCw className="mr-2 h-3 w-3 animate-spin" /> : null}
-                      {(subscription?.plan && (plan.price_eur ?? 0) > (PLANS.find((p) => p.id === subscription.plan)?.price_eur ?? 0)) ? 'Upgrade' : 'Switch'}
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Invoices */}
-      <div>
-        <h2 className="text-lg font-semibold mb-4">Invoice History</h2>
-        {invLoading ? (
-          <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-        ) : invoices?.length === 0 ? (
-          <p className="text-muted-foreground">No invoices yet.</p>
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              <table className="w-full text-sm">
-                <thead className="border-b">
-                  <tr className="text-left text-muted-foreground">
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Amount</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices?.map((inv) => (
-                    <tr key={inv.id} className="border-b last:border-0">
-                      <td className="px-4 py-3">{new Date(inv.created).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">€{(inv.amount_paid / 100).toFixed(2)}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant={inv.status === 'paid' ? 'default' : 'secondary'}>{inv.status}</Badge>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {inv.invoice_pdf && (
-                          <Button variant="ghost" size="sm" asChild>
-                            <a href={inv.invoice_pdf} target="_blank" rel="noreferrer">
-                              <CreditCard className="mr-1 h-3 w-3" /> PDF
-                            </a>
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        )}
-      </div>
     </div>
   )
 }
