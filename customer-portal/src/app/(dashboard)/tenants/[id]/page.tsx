@@ -1,13 +1,13 @@
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, ExternalLink, Trash2, RefreshCw, Cpu, HardDrive, MemoryStick } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Cpu, HardDrive, MemoryStick } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTenant, useTenantMetrics, useDeleteTenant } from '@/lib/hooks/useTenants'
+import { useTenant, useTenantMetrics } from '@/lib/hooks/useTenants'
 
 export default function TenantDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -15,13 +15,6 @@ export default function TenantDetailPage() {
   const tenantId = Number(id)
   const { data: tenant, isLoading } = useTenant(tenantId)
   const { data: metrics, isLoading: metricsLoading } = useTenantMetrics(tenantId)
-  const deleteTenant = useDeleteTenant()
-
-  const handleDelete = () => {
-    if (confirm(`Delete "${tenant?.name}"? This cannot be undone.`)) {
-      deleteTenant.mutate(tenantId, { onSuccess: () => router.push('/tenants') })
-    }
-  }
 
   if (isLoading) {
     return (
@@ -44,7 +37,7 @@ export default function TenantDetailPage() {
     <div className="space-y-6">
       {/* Back + Title */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/tenants')}>
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
@@ -63,12 +56,6 @@ export default function TenantDetailPage() {
             </a>
           </Button>
         )}
-        <Button variant="destructive" onClick={handleDelete} disabled={deleteTenant.isPending}>
-          {deleteTenant.isPending
-            ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-            : <Trash2 className="mr-2 h-4 w-4" />}
-          Delete
-        </Button>
       </div>
 
       {/* Info Card */}

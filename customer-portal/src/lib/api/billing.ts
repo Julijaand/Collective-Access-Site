@@ -6,7 +6,9 @@ export const billingApi = {
   getSubscription: async (): Promise<Subscription | null> => {
     const res = await apiClient.get('/api/subscriptions')
     const list: Subscription[] = res.data.subscriptions ?? res.data
-    return list[0] ?? null
+    // Ignore canceled subscriptions — treat them as no subscription
+    const active = list.find((s) => s.status !== 'canceled') ?? null
+    return active
   },
 
   createCheckout: async (
@@ -24,8 +26,13 @@ export const billingApi = {
     return res.data.url ?? res.data.checkout_url
   },
 
-  createPortalSession: async (): Promise<string> => {
-    const res = await apiClient.post('/billing/portal')
+  confirmCheckout: async (sessionId: string): Promise<{ status: string; tenant_id?: number }> => {
+    const res = await apiClient.post('/billing/checkout/confirm', { session_id: sessionId })
+    return res.data
+  },
+
+  createPortalSession: async (opts?: { subscriptionId?: string }): Promise<string> => {
+    const res = await apiClient.post('/billing/portal', opts ?? {})
     return res.data.url
   },
 

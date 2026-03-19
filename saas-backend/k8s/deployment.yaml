@@ -49,7 +49,7 @@ spec:
           value: "/app/k8s/helm/collectiveaccess"
 
         - name: BASE_DOMAIN
-          value: "yoursaas.com"
+          value: "192.168.49.2.nip.io"
 
         - name: DB_HOST
           value: "mysql.ca-system.svc.cluster.local"
@@ -73,7 +73,7 @@ spec:
           value: "julijaand/collectiveaccess:latest"
 
         - name: CA_CERT_ISSUER
-          value: "letsencrypt"
+          value: "selfsigned"
 
         - name: SECRET_KEY
           valueFrom:

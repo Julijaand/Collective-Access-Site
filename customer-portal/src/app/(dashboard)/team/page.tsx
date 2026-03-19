@@ -137,13 +137,15 @@ export default function TeamPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant={roleColors[m.role]}>{m.role}</Badge>
-                      <Button
-                        variant="ghost" size="icon"
-                        onClick={() => remove.mutate(m.id)}
-                        disabled={remove.isPending}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {m.role !== 'owner' && (
+                        <Button
+                          variant="ghost" size="icon"
+                          onClick={() => remove.mutate(m.id)}
+                          disabled={remove.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )

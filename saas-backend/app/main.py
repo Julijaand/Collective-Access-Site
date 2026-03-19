@@ -24,6 +24,7 @@ from .k8s import KubernetesManager
 from .auth import router as auth_router
 from .tenants import router as tenants_router
 from .billing import router as billing_router
+from .teams import router as teams_router
 
 # Configure logging
 logging.basicConfig(
@@ -56,6 +57,9 @@ app.include_router(tenants_router)
 
 # Billing routes (Stripe Checkout, Portal, Invoices, Subscriptions)
 app.include_router(billing_router)
+
+# Team management routes (invite, role, remove)
+app.include_router(teams_router)
 
 
 # ============================================================================

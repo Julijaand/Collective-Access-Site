@@ -15,7 +15,7 @@ from datetime import datetime
 
 from .auth import get_current_user
 from .database import get_db
-from .models import Tenant, TenantStatus, User
+from .models import Tenant, TenantStatus, User, Subscription
 from .provisioning import TenantProvisioner
 from .k8s import KubernetesManager
 
@@ -49,16 +49,6 @@ class TenantListOut(BaseModel):
     total: int
 
 
-class TenantMetricsOut(BaseModel):
-    tenant_id: int
-    namespace: str
-    health_status: str          # healthy | degraded | down
-    pods_total: int
-    pods_running: int
-    pods_pending: int
-    pods_failed: int
-
-
 # ---------------------------------------------------------------------------
 # Helper: ownership check
 # ---------------------------------------------------------------------------
@@ -83,10 +73,12 @@ def list_tenants(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return all tenants belonging to the logged-in user."""
+    """Return all tenants belonging to the logged-in user with active subscriptions."""
     tenants = (
         db.query(Tenant)
         .filter(Tenant.user_id == current_user.id)
+        .join(Subscription, Subscription.tenant_id == Tenant.id)
+        .filter(Subscription.status != "canceled")
         .order_by(Tenant.created_at.desc())
         .all()
     )
@@ -125,7 +117,7 @@ def delete_tenant(
     return {"status": "deleted", "tenant_id": tenant_id, "namespace": tenant.namespace}
 
 
-@router.get("/{tenant_id}/metrics", response_model=TenantMetricsOut)
+@router.get("/{tenant_id}/metrics")
 def get_tenant_metrics(
     tenant_id: int,
     current_user: User = Depends(get_current_user),
@@ -154,12 +146,12 @@ def get_tenant_metrics(
     else:
         health = "degraded"
 
-    return TenantMetricsOut(
-        tenant_id=tenant.id,
-        namespace=tenant.namespace,
-        health_status=health,
-        pods_total=total,
-        pods_running=running,
-        pods_pending=pod_status.get("pending", 0),
-        pods_failed=pod_status.get("failed", 0),
-    )
+    return {
+        "tenant_id": tenant.id,
+        "namespace": tenant.namespace,
+        "health_status": health,
+        "pods_total": total,
+        "pods_running": running,
+        "pods_pending": pod_status.get("pending", 0),
+        "pods_failed": pod_status.get("failed", 0),
+    }
