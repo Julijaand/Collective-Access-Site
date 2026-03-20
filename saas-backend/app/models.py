@@ -40,6 +40,7 @@ class User(Base):
     # Relationships
     tenants = relationship("Tenant", back_populates="user")
     team_memberships = relationship("TeamMember", back_populates="user")
+    tickets = relationship("SupportTicket", back_populates="user")
 
 
 class Tenant(Base):
@@ -79,6 +80,7 @@ class Tenant(Base):
     subscription = relationship("Subscription", back_populates="tenant", uselist=False)
     provisioning_logs = relationship("ProvisioningLog", back_populates="tenant")
     team_members = relationship("TeamMember", back_populates="tenant")
+    backups = relationship("Backup", back_populates="tenant")
 
     @property
     def name(self) -> str:
@@ -131,6 +133,59 @@ class TeamMember(Base):
     # Relationships
     tenant = relationship("Tenant", back_populates="team_members")
     user = relationship("User", back_populates="team_memberships")
+
+
+class SupportTicket(Base):
+    """Customer support tickets"""
+    __tablename__ = "support_tickets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+
+    subject = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="open")    # open | in_progress | resolved | closed
+    priority = Column(String, nullable=False, default="medium") # low | medium | high | critical
+    category = Column(String, nullable=False, default="general")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    messages = relationship("TicketMessage", back_populates="ticket", order_by="TicketMessage.created_at")
+    user = relationship("User", back_populates="tickets")
+
+
+class TicketMessage(Base):
+    """Messages within a support ticket"""
+    __tablename__ = "ticket_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("support_tickets.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # None = support agent
+
+    author_name = Column(String, nullable=False)
+    author_role = Column(String, nullable=False, default="user")  # user | support
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    ticket = relationship("SupportTicket", back_populates="messages")
+
+
+class Backup(Base):
+    """Tenant backup records"""
+    __tablename__ = "backups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+
+    type = Column(String, nullable=False, default="manual")        # manual | automatic
+    status = Column(String, nullable=False, default="in_progress") # in_progress | completed | failed
+    size_mb = Column(Integer, nullable=True)
+    storage_location = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    tenant = relationship("Tenant", back_populates="backups")
 
 
 class ProvisioningLog(Base):
