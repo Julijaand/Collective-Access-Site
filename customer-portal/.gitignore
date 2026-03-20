@@ -30,6 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# local dev notes (may contain credentials)
+structure.md
+
 # env files (can opt-in for committing if needed)
 .env*
 

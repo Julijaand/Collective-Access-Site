@@ -34,13 +34,21 @@ npm install axios \
 
 echo ""
 echo -e "${BLUE}Step 2/4: Initialising shadcn/ui...${NC}"
-npx shadcn@latest init -y
+if [ -f components.json ]; then
+  echo "  components.json already exists (cloned repo) — skipping shadcn init"
+else
+  npx shadcn@latest init -y
+fi
 
 echo ""
 echo -e "${BLUE}Step 3/4: Installing shadcn/ui components...${NC}"
-npx shadcn@latest add button card input label form dialog dropdown-menu \
-  avatar badge progress table tabs sonner alert skeleton separator sheet \
-  select textarea -y
+if [ -d src/components/ui ] && [ "$(ls -A src/components/ui 2>/dev/null)" ]; then
+  echo "  src/components/ui/ already populated (cloned repo) — skipping shadcn add"
+else
+  npx shadcn@latest add button card input label form dialog dropdown-menu \
+    avatar badge progress table tabs sonner alert skeleton separator sheet \
+    select textarea -y
+fi
 
 echo ""
 echo -e "${BLUE}Step 4/4: Creating environment file...${NC}"
