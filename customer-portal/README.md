@@ -126,7 +126,18 @@ curl http://localhost:8000/health
 # Expected: {"status":"ok","version":"...","database":"connected","kubernetes":"connected"}
 ```
 
+### 4. Start the App
+
+```bash
+npm run dev        # Start dev server (http://localhost:3000)
+npm run build      # Build for production
+npm run start      # Start production server
+npm run lint       # Run ESLint
+```
+
 Open http://localhost:3000
+
+---
 
 ## Kubernetes Deployment
 
@@ -366,18 +377,6 @@ kubectl exec -n ca-system <postgres-pod> -- \
   psql -U ca_saas -d ca_saas -c \
   "DELETE FROM tenants WHERE namespace = 'tenant-abc123';"
 ```
-
----
-
-## Available Scripts
-
-```bash
-npm run dev        # Start dev server (http://localhost:3000)
-npm run build      # Build for production
-npm run start      # Start production server
-npm run lint       # Run ESLint
-```
-
 ---
 
 ## Environment Variables
@@ -434,11 +433,44 @@ The API client (`src/lib/api/client.ts`) handles:
 - [x] Overview page — active instance card, plan & status stats
 - [x] Automatic tenant provisioning on payment (1 subscription = 1 tenant)
 - [x] Local wildcard DNS via dnsmasq (no manual /etc/hosts per tenant)
-- [ ] Team management page
-- [ ] Support tickets page
-- [ ] Backups page
+- [x] Team management page
+- [x] Support tickets page
+- [x] Backups page
 - [ ] Real-time metrics (WebSocket)
 - [ ] Production deployment
+
+---
+
+## Important Notes
+
+### 🏗️ Local vs Production Differences
+
+### 👥 Team Management
+
+- The **owner** record is auto-created on first visit to the Team page (no manual setup needed)
+- Inviting an email that already has a portal account → member is `active` immediately
+- Inviting a new email → member shows as `pending` (in production: send invite email with signup link)
+- **Owner cannot be removed or have their role changed** — protected by API
+- Roles: `owner` > `admin` > `editor` > `viewer` (currently informational — full RBAC can be added later)
+
+---
+
+### 🎫 Support Tickets
+
+- Tickets are scoped to the logged-in user (not per-tenant)
+- First message = ticket description (submitted with the form)
+- Replying to a `resolved` ticket automatically reopens it to `open`
+- Closing a ticket blocks further replies
+- In production: add email notifications and a support-agent UI to the admin backend
+
+---
+
+### 💾 Backups
+
+- Manual backups are created instantly and marked `completed` with a simulated file size
+- `storage_location` field is a path string — in production point this to S3/GCS
+- The restore endpoint accepts the request and logs it — in production wire it to a K8s Job that runs `mysqldump` restore
+- Automatic backups (type=`automatic`) would be created by a CronJob in production
 
 ---
 

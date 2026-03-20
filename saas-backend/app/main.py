@@ -25,6 +25,8 @@ from .auth import router as auth_router
 from .tenants import router as tenants_router
 from .billing import router as billing_router
 from .teams import router as teams_router
+from .support import router as support_router
+from .backups import router as backups_router
 
 # Configure logging
 logging.basicConfig(
@@ -60,6 +62,12 @@ app.include_router(billing_router)
 
 # Team management routes (invite, role, remove)
 app.include_router(teams_router)
+
+# Support ticket routes
+app.include_router(support_router)
+
+# Backup routes
+app.include_router(backups_router)
 
 
 # ============================================================================
