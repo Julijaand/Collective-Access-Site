@@ -27,6 +27,7 @@ from .billing import router as billing_router
 from .teams import router as teams_router
 from .support import router as support_router
 from .backups import router as backups_router
+from .ai_chat import router as ai_chat_router
 
 # Configure logging
 logging.basicConfig(
@@ -68,6 +69,9 @@ app.include_router(support_router)
 
 # Backup routes
 app.include_router(backups_router)
+
+# AI Chat routes
+app.include_router(ai_chat_router)
 
 
 # ============================================================================

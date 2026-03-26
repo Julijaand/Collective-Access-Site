@@ -753,6 +753,151 @@ tenant-123.yoursaas.com → LoadBalancer IP → Ingress → Tenant Service
 
 ---
 
+## AI Support Chatbot (Phase 5)
+
+RAG-powered chat that answers Collective Access questions using a **local LLM (Ollama + Llama 3.2)** and a **ChromaDB vector database**. Runs entirely in-cluster — no external AI API calls, no cost per query.
+
+### How it works
+
+```
+User question
+     │
+     ▼
+Embed question  (sentence-transformers/all-MiniLM-L6-v2)
+     │
+     ▼
+Search ChromaDB  →  top-3 most relevant doc chunks
+     │
+     ▼
+Build prompt with retrieved context
+     │
+     ▼
+Ollama  (llama3.2, in-cluster pod)  →  answer
+     │
+     ▼
+Return reply + source references to the portal widget
+```
+
+### K8s architecture
+
+| Resource | File | Purpose |
+|----------|------|---------|
+| `Deployment/ollama` | `k8s/ollama-deployment.yaml` | Runs the Ollama LLM server |
+| `Service/ollama-svc` | same file | ClusterIP — backend reaches it at `http://ollama-svc:11434` |
+| `PVC/ollama-models-pvc` | same file | 5 Gi — stores downloaded model weights across pod restarts |
+| `PVC/ai-vector-db-pvc` | `k8s/ai-pvc.yaml` | 1 Gi — ChromaDB vector store shared between ingest Job and backend |
+| `Job/ai-ingest` | `k8s/ai-ingest-job.yaml` | One-shot ingestion — runs `python -m ai.ingest` |
+| `Deployment/saas-backend` | `k8s/deployment.yaml` | Mounts vector DB PVC; reads `OLLAMA_BASE_URL` from env |
+
+### First-time deploy
+
+```bash
+cd saas-backend
+
+# 1. PVCs
+kubectl apply -f k8s/ai-pvc.yaml
+
+# 2. Ollama — initContainer pulls llama3.2 (~2 GB) on first start
+kubectl apply -f k8s/ollama-deployment.yaml
+kubectl rollout status deployment/ollama -n ca-system --timeout=300s
+
+# 3. Backend (with OLLAMA_BASE_URL env var + vector-db volume mount)
+kubectl apply -f k8s/deployment.yaml
+kubectl rollout restart deployment/saas-backend -n ca-system
+kubectl rollout status deployment/saas-backend -n ca-system --timeout=120s
+
+# 4. Ingest knowledge base into ChromaDB
+kubectl apply -f k8s/ai-ingest-job.yaml
+kubectl logs -n ca-system -l job-name=ai-ingest -f
+# Expected: ✅ INGESTION COMPLETE — 26 chunks stored
+```
+
+### Verify it's working
+
+```bash
+curl -sk https://api.portal.<your-domain>/api/chat/health | python3 -m json.tool
+```
+
+Expected response:
+```json
+{
+  "ollama": "ok",
+  "ollama_url": "http://ollama-svc:11434",
+  "ollama_model": "llama3.2:latest",
+  "vector_db": "ready",
+  "vector_db_path": "/app/ai/vector_db"
+}
+```
+
+### Adding or updating knowledge base docs
+
+Drop any `.md` file into `ai/docs/`, rebuild and push the backend image, then re-run the ingest Job:
+
+```bash
+# Rebuild image
+docker build -t julijaand/ca-saas-backend:latest .
+docker push julijaand/ca-saas-backend:latest
+
+# Re-run ingest
+kubectl delete job ai-ingest -n ca-system --ignore-not-found
+kubectl apply -f k8s/ai-ingest-job.yaml
+kubectl logs -n ca-system -l job-name=ai-ingest -f
+```
+
+Current knowledge base:
+
+| File | Content |
+|------|---------|
+| `ai/docs/collective_access_basics.md` | CA features, record types, user roles, how to log in |
+| `ai/docs/platform_faq.md` | Plans, billing, team management, backups, tickets |
+| `ai/docs/troubleshooting.md` | Common errors, 502s, certificate issues, import failures |
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OLLAMA_BASE_URL` | `http://ollama-svc:11434` | Ollama endpoint — override with `http://localhost:11434` for local dev |
+| `OLLAMA_MODEL` | `llama3.2:latest` | LLM model name |
+
+### API endpoints
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `POST /api/chat` | JWT required | Send a message, get AI reply + sources |
+| `GET /api/chat/health` | Public | Check Ollama reachability and vector DB status |
+
+**Test chat (with JWT):**
+```bash
+TOKEN=$(curl -sk -X POST https://api.portal.<domain>/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@example.com","password":"password"}' \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])')
+
+curl -sk -X POST https://api.portal.<domain>/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How do I import data?"}'
+```
+
+### Local development
+
+For local dev the backend can reach your Mac's Ollama directly — no K8s needed:
+
+```bash
+# Make sure Ollama is running locally
+ollama serve &
+ollama pull llama3.2
+
+# Ingest locally
+cd saas-backend
+python -m ai.ingest
+
+# Start backend with local Ollama URL
+OLLAMA_BASE_URL=http://localhost:11434 uvicorn app.main:app --reload
+```
+
+---
+
 ## Troubleshooting
 
 ### Backend won't start

@@ -1,0 +1,16 @@
+# PVC for the ChromaDB vector database.
+# Mounted by:
+#   - ai-ingest Job  (writes chunks after ingestion)
+#   - saas-backend   (reads chunks at query time)
+# Both must use the same PVC so they share the same data.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ai-vector-db-pvc
+  namespace: ca-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# AI — generated at runtime via PVC, not needed in image
+ai/vector_db/
+ai/__pycache__/
+
+# AI — documentation only, not needed in image
+ai/LLM_PROVIDER_OPTIONS.md
+
+# Alembic — generated migration files not needed in runtime image
+alembic/versions/__pycache__/
+
+# Local dev / secrets
+.env
+.env.*
+*.secret
+
+# Logs
+logs/
+*.log
+
+# Tests
+tests/
+
+# Git
+.git/
+.gitignore
+
+# Docker
+.dockerignore
+Dockerfile
+
+# Editor
+.vscode/
+.idea/
+*.swp

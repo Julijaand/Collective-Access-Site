@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/Sidebar'
 import { Header } from '@/components/dashboard/Header'
+import { AiChatWidget } from '@/components/dashboard/AiChatWidget'
 import { useAuthStore } from '@/lib/stores/authStore'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+      <AiChatWidget />
     </div>
   )
 }

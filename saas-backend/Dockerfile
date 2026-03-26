@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application
 COPY app/ ./app/
+COPY ai/ ./ai/
 COPY k8s/helm/collectiveaccess /app/k8s/helm/collectiveaccess
 
 # Expose port

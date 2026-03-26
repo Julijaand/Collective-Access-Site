@@ -83,3 +83,17 @@ spec:
 
         - name: ACCESS_TOKEN_EXPIRE_MINUTES
           value: "1440"
+        # AI / RAG
+        - name: OLLAMA_BASE_URL
+          value: "http://ollama-svc:11434"
+        - name: OLLAMA_MODEL
+          value: "llama3.2:latest"
+
+        volumeMounts:
+        - name: vector-db
+          mountPath: /app/ai/vector_db   # ChromaDB — written by ingest Job, read here
+
+      volumes:
+      - name: vector-db
+        persistentVolumeClaim:
+          claimName: ai-vector-db-pvc

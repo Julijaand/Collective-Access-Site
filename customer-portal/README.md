@@ -436,6 +436,7 @@ The API client (`src/lib/api/client.ts`) handles:
 - [x] Team management page
 - [x] Support tickets page
 - [x] Backups page
+- [x] AI chat widget (built-in — see [saas-backend README](../saas-backend/README.md#ai-support-chatbot-phase-5) for Ollama setup)
 - [ ] Real-time metrics (WebSocket)
 - [ ] Production deployment
 
