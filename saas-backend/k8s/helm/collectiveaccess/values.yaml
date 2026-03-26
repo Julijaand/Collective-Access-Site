@@ -1,0 +1,27 @@
+# Tenant configuration
+tenantName: ""
+domain: ""
+
+# Database (external)
+database:
+  host: mysql.ca-system.svc.cluster.local
+  port: "3306"
+  name: ""
+  user: ""
+  password: ""
+
+# Docker image
+image: julijaand/collectiveaccess:latest
+
+# Storage
+storageSize: 20Gi
+
+# TLS certificate issuer (selfsigned for local, letsencrypt for production)
+certIssuer: selfsigned
+
+# Application configuration
+app:
+  timezone: Europe/Paris
+  adminEmail: julijaand111@gmail.com
+  instanceId: ""
+  tenantDisplayName: ""
