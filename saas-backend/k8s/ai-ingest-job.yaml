@@ -1,0 +1,31 @@
+# Runs python -m ai.ingest to populate the vector DB.
+# Run this once after first deploy, and re-run whenever ai/docs/ changes:
+#
+#   kubectl delete job ai-ingest -n ca-system --ignore-not-found
+#   kubectl apply -f k8s/ai-ingest-job.yaml
+#   kubectl logs -n ca-system -l job-name=ai-ingest -f
+#
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ai-ingest
+  namespace: ca-system
+spec:
+  ttlSecondsAfterFinished: 600    # auto-delete job pod 10 min after completion
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: ingest
+        image: julijaand/ca-saas-backend:latest
+        imagePullPolicy: Always
+        command: ["python", "-m", "ai.ingest"]
+        workingDir: /app
+        volumeMounts:
+        - name: vector-db
+          mountPath: /app/ai/vector_db   # ingest writes here
+      volumes:
+      - name: vector-db
+        persistentVolumeClaim:
+          claimName: ai-vector-db-pvc
