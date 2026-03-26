@@ -1,0 +1,17 @@
+# Secrets — never commit real credentials
+.env
+file.md
+
+# Docker volumes / generated data
+mysql_data/
+ca_media/
+ca_tmp/
+ca_logs/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store

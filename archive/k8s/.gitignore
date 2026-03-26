@@ -1,0 +1,6 @@
+# Secret files — contain real credentials, never commit
+mysql-root-password-secret.yaml
+helm/collectiveaccess/helm-secret.yaml
+
+# Keep the .template versions — they are safe to commit
+# (templates have placeholder values, not real secrets)
