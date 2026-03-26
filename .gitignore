@@ -7,7 +7,7 @@ venv/
 .venv/
 
 # CA application files (downloaded at build time)
-collectiveaccess/
+ca-docker/collectiveaccess/
 
 # Temporary files
 *.tmp
