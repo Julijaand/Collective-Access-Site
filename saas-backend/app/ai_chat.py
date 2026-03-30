@@ -164,8 +164,10 @@ async def chat(
 
     # --- Step 2: Build prompt & call Ollama ---
     try:
+        import asyncio
         prompt = _build_prompt(question, context)
-        reply = _call_ollama(prompt)
+        # Run blocking LLM call in a thread so it doesn't block the async event loop
+        reply = await asyncio.get_event_loop().run_in_executor(None, _call_ollama, prompt)
     except Exception as e:
         logger.error(f"Ollama call failed: {e}")
         raise HTTPException(
