@@ -1,0 +1,78 @@
+services:
+  db:
+    image: mysql:${MYSQL_VERSION:-8.0}
+    container_name: ${DB_CONTAINER_NAME:-ca-db}
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - ca-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USER}", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  ca:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${CA_CONTAINER_NAME:-ca-app}
+    ports:
+      - "${CA_PORT:-8080}:80"
+    environment:
+      # Database connection
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      
+      # Site configuration
+      CA_SITE_HOST: ${CA_SITE_HOST}
+      CA_ADMIN_EMAIL: ${CA_ADMIN_EMAIL}
+      CA_TIMEZONE: ${CA_TIMEZONE:-UTC}
+      
+      # Instance identification (for multi-tenancy)
+      CA_INSTANCE_ID: ${CA_INSTANCE_ID:-local_dev}
+      CA_TENANT_NAME: ${CA_TENANT_NAME:-default}
+    volumes:
+      - ca_media:/var/www/html/ca/media
+      - ca_logs:/var/www/html/ca/app/log
+      - ca_tmp:/var/www/html/ca/app/tmp
+      - ca_cache:/var/www/html/ca/app/cache
+
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ca-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(is_file('/var/www/html/ca/index.php') ? 0 : 1);"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  db_data:
+    driver: local
+  ca_media:
+    driver: local
+  ca_logs:
+    driver: local
+  ca_tmp:
+    driver: local
+  ca_cache:
+    driver: local
+
+networks:
+  ca-net:
+    driver: bridge
