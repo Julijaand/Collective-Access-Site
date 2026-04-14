@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: portal
-        image: julijaand/ca-customer-portal:latest
+        image: julijaand/customer-portal:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000

@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Minikube: base is already configured for local dev.
+# No patches needed — selfsigned cert + default storageClass + local nip.io domain.
+#
+# Usage:
+#   kubectl apply -k k8s/overlays/minikube/
+
+resources:
+  - ../../base

@@ -155,7 +155,7 @@ export default function BillingPage() {
               ? (plan.price_eur ?? 0) > (PLANS.find((p) => p.id === subscription.plan)?.price_eur ?? 0)
               : false
             return (
-              <Card key={plan.id} className={isCurrent ? 'border-primary ring-1 ring-primary' : ''}>
+              <Card key={plan.id} className={`flex flex-col h-full ${isCurrent ? 'border-primary ring-1 ring-primary' : ''}`}>
                 <CardHeader>
                   <CardTitle className="text-base">{plan.name}</CardTitle>
                   <p className="text-2xl font-bold">
@@ -163,14 +163,15 @@ export default function BillingPage() {
                     {plan.price_eur !== null && <span className="text-sm font-normal text-muted-foreground">/mo</span>}
                   </p>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <ul className="space-y-1 text-sm">
+                <CardContent className="flex flex-col flex-1 gap-4">
+                  <ul className="space-y-1 text-sm flex-1">
                     {plan.features.map((f) => (
                       <li key={f} className="flex items-center gap-2">
                         <Check className="h-3 w-3 text-green-500 shrink-0" /> {f}
                       </li>
                     ))}
                   </ul>
+                  <div className="mt-auto">
                   {isCurrent ? (
                     <Button className="w-full" disabled>Current plan</Button>
                   ) : plan.id === 'enterprise' ? (
@@ -197,6 +198,7 @@ export default function BillingPage() {
                       <Rocket className="mr-2 h-4 w-4" /> Subscribe
                     </Button>
                   )}
+                  </div>
                 </CardContent>
               </Card>
             )

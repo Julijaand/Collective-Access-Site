@@ -64,3 +64,4 @@ yarn-error.log*
 out/
 dist/
 build/
+secrets.nebius.env

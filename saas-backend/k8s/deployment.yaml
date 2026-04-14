@@ -6,7 +6,9 @@ metadata:
   labels:
     app: saas-backend
 spec:
-  replicas: 2
+  replicas: 1  # RWO PVC (ai-vector-db-pvc) cannot be shared — must stay at 1
+  strategy:
+    type: Recreate  # required: RWO PVC can only attach to one node; RollingUpdate would deadlock
   selector:
     matchLabels:
       app: saas-backend
@@ -18,7 +20,7 @@ spec:
       serviceAccountName: saas-backend
       containers:
       - name: backend
-        image: julijaand/ca-saas-backend:latest
+        image: julijaand/saas-backend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8000

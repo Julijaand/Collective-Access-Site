@@ -50,32 +50,57 @@ export function AiChatWidget() {
     setMessages((prev) => [...prev, { role: 'user', content: question }])
     setLoading(true)
 
+    // Add an empty assistant message that we'll fill in token by token
+    setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
+
     try {
-      const res = await chatApi.send({ message: question, tenant_id: tenantId })
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: res.reply,
-          sources: res.used_rag ? res.sources : [],
+      await chatApi.sendStream(
+        { message: question, tenant_id: tenantId },
+        // onToken — append each token to the last message
+        (token) => {
+          setMessages((prev) => {
+            const updated = [...prev]
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              content: updated[updated.length - 1].content + token,
+            }
+            return updated
+          })
         },
-      ])
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status
-      const isTimeout = (err as { code?: string })?.code === 'ECONNABORTED'
-
-      let content: string
-      if (status === 401) {
-        content = 'Your session has expired. Please [log in again](/login) to continue.'
-      } else if (isTimeout) {
-        content = 'The assistant is taking too long to respond. Please try again in a moment.'
-      } else {
-        content =
-          'Sorry, the AI assistant is currently unavailable. Please [open a support ticket](/support) and our team will help you.'
-      }
-
-      setMessages((prev) => [...prev, { role: 'assistant', content }])
-    } finally {
+        // onDone — attach sources
+        (sources) => {
+          setMessages((prev) => {
+            const updated = [...prev]
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              sources,
+            }
+            return updated
+          })
+          setLoading(false)
+        },
+        // onError
+        (errType) => {
+          const content = errType === 'session_expired'
+            ? 'Your session has expired. Please [log in again](/login) to continue.'
+            : 'Sorry, the AI assistant is currently unavailable. Please [open a support ticket](/support) and our team will help you.'
+          setMessages((prev) => {
+            const updated = [...prev]
+            updated[updated.length - 1] = { role: 'assistant', content }
+            return updated
+          })
+          setLoading(false)
+        },
+      )
+    } catch {
+      setMessages((prev) => {
+        const updated = [...prev]
+        updated[updated.length - 1] = {
+          role: 'assistant',
+          content: 'The assistant is taking too long to respond. Please try again in a moment.',
+        }
+        return updated
+      })
       setLoading(false)
     }
   }
@@ -172,8 +197,8 @@ export function AiChatWidget() {
               </div>
             ))}
 
-            {/* Typing indicator */}
-            {loading && (
+            {/* Typing indicator — only while the streaming reply hasn't started yet */}
+            {loading && messages[messages.length - 1]?.content === '' && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

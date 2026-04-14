@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { ExternalLink, RefreshCw } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CreditCard, Server, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -38,6 +39,13 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | '
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
+  const [hasVisitedBefore, setHasVisitedBefore] = useState(false)
+
+  useEffect(() => {
+    const visited = !!localStorage.getItem('ca_portal_visited_dashboard')
+    setHasVisitedBefore(visited)
+    if (!visited) localStorage.setItem('ca_portal_visited_dashboard', '1')
+  }, [])
 
   const { data: tenants, isLoading: tenantsLoading } = useQuery({
     queryKey: ['tenants'],
@@ -55,7 +63,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Welcome back, {user?.email?.split('@')[0] ?? 'there'} 👋</h1>
+        <h1 className="text-2xl font-bold">{hasVisitedBefore ? 'Welcome back' : 'Welcome'}, {user?.email?.split('@')[0] ?? 'there'} 👋</h1>
         <p className="text-muted-foreground mt-1">Here's an overview of your Collective Access account.</p>
       </div>
 

@@ -44,7 +44,6 @@ class Settings(BaseSettings):
 
     # Frontend portal URL (used in billing portal return_url)
     APP_URL: str = Field(
-        default="https://portal.192.168.49.2.nip.io",
         description="Public URL of the customer portal"
     )
     

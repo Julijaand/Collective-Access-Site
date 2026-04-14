@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
@@ -24,6 +24,11 @@ export default function LoginPage() {
   const router = useRouter()
   const login = useAuthStore((s) => s.login)
   const [loading, setLoading] = useState(false)
+  const [hasVisited, setHasVisited] = useState(false)
+
+  useEffect(() => {
+    setHasVisited(!!localStorage.getItem('ca_portal_visited'))
+  }, [])
 
   const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } })
 
@@ -31,6 +36,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(data.email, data.password)
+      localStorage.setItem('ca_portal_visited', '1')
       router.push('/dashboard')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
@@ -43,7 +49,7 @@ export default function LoginPage() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome back</CardTitle>
+        <CardTitle className="text-2xl">{hasVisited ? 'Welcome back' : 'Welcome'}</CardTitle>
         <CardDescription>Sign in to your Collective Access portal</CardDescription>
       </CardHeader>
       <CardContent>

@@ -1,0 +1,5 @@
+# JSON patch — adds storageClassName to a PVC.
+# Reused for all three PVCs via target: selectors in kustomization.yaml.
+- op: add
+  path: /spec/storageClassName
+  value: compute-csi-default-sc

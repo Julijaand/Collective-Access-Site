@@ -41,7 +41,7 @@ spec:
           - |
             ollama serve &
             sleep 5
-            ollama pull llama3.2
+            ollama pull llama3.2:1b
             kill %1 || true
         volumeMounts:
         - name: ollama-models

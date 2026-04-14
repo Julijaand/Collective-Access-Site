@@ -114,6 +114,7 @@ class HelmManager:
         db_user: str,
         db_password: str,
         ca_app_name: str,
+        admin_email: str,
     ) -> tuple[bool, str]:
         """
         Install or upgrade a tenant Helm release (idempotent)
@@ -134,7 +135,7 @@ class HelmManager:
             "--namespace", namespace,
             "--create-namespace",
             "--atomic",
-            "--timeout", "300s",
+            "--timeout", "1200s",  # CA first-boot DB install can take 10-20 min
 
             "--set", f"tenantName={tenant_name}",
             "--set", f"domain={domain}",
@@ -150,7 +151,7 @@ class HelmManager:
             "--set", f"certIssuer={settings.CA_CERT_ISSUER}",
 
             "--set", f"app.timezone={settings.CA_TIMEZONE}",
-            "--set", f"app.adminEmail={settings.CA_ADMIN_EMAIL}",
+            "--set", f"app.adminEmail={admin_email}",
             "--set", f"app.instanceId={tenant_name}",
             "--set", f"app.tenantDisplayName={tenant_name}",
             "--set", f"app.caAppName={ca_app_name}",

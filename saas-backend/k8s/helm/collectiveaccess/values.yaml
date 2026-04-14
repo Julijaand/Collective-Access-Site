@@ -15,6 +15,7 @@ image: julijaand/collectiveaccess:latest
 
 # Storage
 storageSize: 20Gi
+storageClassName: compute-csi-default-sc  # Nebius: compute-csi-default-sc | minikube: standard
 
 # TLS certificate issuer (selfsigned for local, letsencrypt for production)
 certIssuer: selfsigned
