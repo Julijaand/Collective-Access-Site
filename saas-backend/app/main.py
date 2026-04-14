@@ -89,6 +89,27 @@ async def startup_event():
         logger.error(f"Failed to initialize database: {e}")
         raise
 
+    # Warm up Ollama: send a tiny request so the model is loaded into memory
+    # before the first real user request hits (avoids cold-start timeout)
+    import asyncio
+    async def _warmup_ollama():
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=180.0) as client:
+                from .ai_chat import OLLAMA_BASE_URL, OLLAMA_MODEL
+                logger.info(f"Warming up Ollama model {OLLAMA_MODEL}...")
+                r = await client.post(
+                    f"{OLLAMA_BASE_URL}/api/generate",
+                    json={"model": OLLAMA_MODEL, "prompt": "hi", "stream": False},
+                )
+                if r.status_code == 200:
+                    logger.info("Ollama warm-up complete ✓")
+                else:
+                    logger.warning(f"Ollama warm-up returned {r.status_code}")
+        except Exception as e:
+            logger.warning(f"Ollama warm-up failed (non-fatal): {e}")
+    asyncio.create_task(_warmup_ollama())
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -235,10 +256,12 @@ async def delete_tenant(tenant_id: int, db: Session = Depends(get_db)):
 # ============================================================================
 
 @app.post("/webhooks/stripe")
+@app.post("/api/stripe/webhook")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Stripe webhook endpoint
     Handles payment events and triggers tenant provisioning
+    Registered at both /webhooks/stripe and /api/stripe/webhook
     """
     handler = StripeWebhookHandler(db)
     return await handler.handle_webhook(request)

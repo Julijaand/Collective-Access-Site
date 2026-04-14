@@ -3,9 +3,13 @@ AI Chat endpoint — RAG-powered support chatbot
 Uses ChromaDB (vector search) + Ollama (LLM) + sentence-transformers (embeddings)
 """
 from pathlib import Path
-from typing import Optional
+from typing import Optional, AsyncGenerator
 import os
+import json
+import asyncio
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from .database import get_db
@@ -52,6 +56,7 @@ try:
         model=OLLAMA_MODEL,
         base_url=OLLAMA_BASE_URL,
         temperature=0.3,
+        request_timeout=120.0,  # 2 min — allows model cold-start load time
     )
     logger.info(f"Ollama LLM ready ({OLLAMA_MODEL} @ {OLLAMA_BASE_URL})")
 except Exception as _e:
@@ -100,7 +105,7 @@ def _call_ollama(prompt: str) -> str:
     global _llm
     if _llm is None:
         from langchain_ollama import OllamaLLM
-        _llm = OllamaLLM(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL, temperature=0.3)
+        _llm = OllamaLLM(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL, temperature=0.3, request_timeout=120.0)
     return _llm.invoke(prompt).strip()
 
 
@@ -176,6 +181,80 @@ async def chat(
         )
 
     return ChatResponse(reply=reply, sources=sources, used_rag=used_rag)
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    request: ChatRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Streaming SSE chat endpoint — tokens are sent as they are generated.
+    Frontend receives `data: {"token": "..."}` lines, then `data: {"done": true, "sources": [...]}`
+    """
+    question = request.message.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    sources: list[ChatSource] = []
+    context = ""
+    used_rag = False
+
+    # RAG retrieval (same as non-streaming endpoint)
+    vector_store = _get_vector_store()
+    if vector_store:
+        try:
+            results = vector_store.similarity_search_with_score(question, k=3)
+            chunks = []
+            for doc, score in results:
+                if score < 1.5:
+                    chunks.append(doc.page_content)
+                    sources.append(ChatSource(
+                        title=doc.metadata.get("title", "Knowledge Base"),
+                        section=doc.metadata.get("section", ""),
+                    ))
+            if chunks:
+                context = "\n\n".join(chunks)
+                used_rag = True
+        except Exception as e:
+            logger.warning(f"RAG retrieval failed: {e}")
+
+    prompt = _build_prompt(question, context)
+
+    async def token_generator() -> AsyncGenerator[str, None]:
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                async with client.stream(
+                    "POST",
+                    f"{OLLAMA_BASE_URL}/api/generate",
+                    json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": True},
+                ) as resp:
+                    async for line in resp.aiter_lines():
+                        if not line:
+                            continue
+                        try:
+                            data = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        token = data.get("response", "")
+                        if token:
+                            yield f"data: {json.dumps({'token': token})}\n\n"
+                        if data.get("done"):
+                            yield f"data: {json.dumps({'done': True, 'sources': [s.dict() for s in sources], 'used_rag': used_rag})}\n\n"
+                            return
+        except Exception as e:
+            logger.error(f"Streaming Ollama call failed: {e}")
+            yield f"data: {json.dumps({'error': 'AI service unavailable'})}\n\n"
+
+    return StreamingResponse(
+        token_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # disable nginx buffering
+        },
+    )
 
 
 @router.get("/chat/health")

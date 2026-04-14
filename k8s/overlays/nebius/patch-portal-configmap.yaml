@@ -1,0 +1,10 @@
+# Strategic merge patch — overrides only the URL keys; APP_NAME is inherited from base.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: customer-portal-config
+  namespace: ca-system
+data:
+  NEXT_PUBLIC_API_URL: "https://api.portal.89.169.109.158.nip.io"
+  NEXT_PUBLIC_WS_URL: "wss://api.portal.89.169.109.158.nip.io"
+  NEXT_PUBLIC_APP_URL: "https://portal.89.169.109.158.nip.io"

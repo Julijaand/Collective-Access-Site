@@ -105,6 +105,10 @@ class TenantProvisioner:
         db_user = f"ca_{tenant_suffix}"
         db_password = uuid.uuid4().hex
 
+        # Generate admin password upfront — stored before deployment so it's
+        # never lost even if the post-install step fails
+        ca_admin_password = uuid.uuid4().hex[:12]
+
         # Create Tenant object (metadata stored in PostgreSQL)
         tenant = Tenant(
             user_id=user_id,
@@ -117,7 +121,7 @@ class TenantProvisioner:
             db_user=db_user,
             db_password=db_password,
             ca_admin_username="administrator",
-            ca_admin_password=None,  # to be filled after installation
+            ca_admin_password=ca_admin_password,  # stored now, set on pod after deploy
         )
 
         self.db.add(tenant)
@@ -165,16 +169,19 @@ class TenantProvisioner:
                 db_name=db_name,
                 db_user=db_user,
                 db_password=db_password,
-                ca_app_name=ca_app_name,  # use CA-safe identifier
+                ca_app_name=ca_app_name,
+                admin_email=email,  # use actual tenant user's email
             )
 
-            # Run CollectiveAccess installer inside pod
-            ca_password = self._run_ca_installer(k8s_namespace, helm_release_name, ca_app_name)
+            # After Helm --atomic returns, the CA entrypoint has already run the
+            # installer. Just reset the password to our pre-generated value.
+            # This is fast (~2s) and never times out.
+            self._set_ca_password(k8s_namespace, helm_release_name, ca_admin_password)
 
             # Update tenant metadata
             tenant.status = TenantStatus.ACTIVE
             tenant.deployed_at = datetime.utcnow()
-            tenant.ca_admin_password = ca_password or "Installer not completed"
+            # ca_admin_password already set on tenant before deployment
 
             log.status = "completed"
             log.message = f"Successfully provisioned {helm_release_name}"
@@ -244,7 +251,8 @@ class TenantProvisioner:
         db_name: str,
         db_user: str,
         db_password: str,
-        ca_app_name: str,  
+        ca_app_name: str,
+        admin_email: str,
     ):
         """
         Ensure Helm release exists for tenant.
@@ -261,7 +269,8 @@ class TenantProvisioner:
             db_name=db_name,
             db_user=db_user,
             db_password=db_password,
-            ca_app_name=ca_app_name,  # <-- pass CA app name
+            ca_app_name=ca_app_name,
+            admin_email=admin_email,
         )
 
         if not success:
@@ -313,14 +322,13 @@ class TenantProvisioner:
     # CA installer
     # ------------------------------------------------------------------
 
-    def _run_ca_installer(self, namespace: str, tenant_name: str, ca_app_name: str) -> str | None:
+    def _set_ca_password(self, namespace: str, tenant_name: str, password: str) -> bool:
         """
-        Run the CollectiveAccess installer inside the tenant pod.
-        Uses ca_app_name (alphanumeric + underscore) to avoid invalid CA_APP_NAME.
+        Set the CA administrator password using caUtils reset-password.
+        Called after Helm --atomic returns (CA is already installed by the entrypoint).
+        Fast operation (~2s), never conflicts with the installer.
         """
         try:
-            time.sleep(30)
-            # Get pod name
             result = subprocess.run(
                 [
                     "kubectl", "get", "pod", "-n", namespace,
@@ -331,35 +339,30 @@ class TenantProvisioner:
             )
             pod_name = result.stdout.strip()
             if not pod_name:
-                return None
+                logger.warning(f"No pod found in {namespace} to set CA password")
+                return False
 
-            # Run installer inside pod
             result = subprocess.run(
                 [
                     "kubectl", "exec", "-n", namespace, pod_name,
                     "--", "php", "/var/www/html/ca/support/bin/caUtils",
-                    "install",
-                    "--profile-name=default",
-                    f"--admin-email={settings.CA_ADMIN_EMAIL}",
-                    f"--app-name={ca_app_name}",   # << pass CA-safe app name
-                    "--overwrite",
+                    "reset-password",
+                    "--user", "administrator",
+                    "--password", password,
                 ],
-                capture_output=True, text=True, timeout=120
+                capture_output=True, text=True, timeout=60
             )
 
             if result.returncode != 0:
-                logger.error(result.stderr)
-                return None
+                logger.error(f"reset-password failed: {result.stderr}")
+                return False
 
-            # Extract password from installer output
-            for line in result.stdout.splitlines():
-                if "password" in line.lower():
-                    return line.split()[-1]
-            return None
+            logger.info(f"CA admin password set for {tenant_name}")
+            return True
 
         except Exception as e:
-            logger.error(f"CA installer failed: {e}")
-            return None
+            logger.error(f"_set_ca_password failed: {e}")
+            return False
 
 
     # ------------------------------------------------------------------

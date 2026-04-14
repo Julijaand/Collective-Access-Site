@@ -1,0 +1,19 @@
+# Strategic merge patch — merges env[] by name, so only these two keys are overridden.
+# The rest of the container spec (secrets, image, probes) is inherited from base unchanged.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas-backend
+  namespace: ca-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: backend
+        env:
+        - name: BASE_DOMAIN
+          value: "89.169.109.158.nip.io"
+        - name: CA_CERT_ISSUER
+          value: "letsencrypt"
+        - name: APP_URL
+          value: "https://portal.89.169.109.158.nip.io"

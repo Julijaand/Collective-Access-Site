@@ -1,0 +1,10 @@
+# Replace yoursaas.com with your actual domain before deploying.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: customer-portal-config
+  namespace: ca-system
+data:
+  NEXT_PUBLIC_API_URL: "https://api.yoursaas.com"
+  NEXT_PUBLIC_WS_URL: "wss://api.yoursaas.com"
+  NEXT_PUBLIC_APP_URL: "https://portal.yoursaas.com"

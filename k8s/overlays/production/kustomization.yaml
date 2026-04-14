@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Production: letsencrypt, network-ssd storage, real domain.
+#
+# Usage:
+#   1. Replace every occurrence of yoursaas.com in this overlay's patch files
+#      with your actual domain (grep -r yoursaas.com k8s/overlays/production/)
+#   2. ./deploy-secrets.sh
+#   3. kubectl apply -k k8s/overlays/production/
+
+resources:
+  - ../../base
+
+patches:
+  - path: patch-backend-env.yaml
+
+  - path: patch-backend-ingress.yaml
+    target:
+      kind: Ingress
+      name: saas-backend-ingress
+
+  - path: patch-portal-ingress.yaml
+    target:
+      kind: Ingress
+      name: customer-portal-ingress
+
+  - path: patch-portal-configmap.yaml
+
+  - path: patch-pvcs.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: ai-vector-db-pvc
+  - path: patch-pvcs.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: postgres-data-pvc
+  - path: patch-pvcs.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: ollama-models-pvc

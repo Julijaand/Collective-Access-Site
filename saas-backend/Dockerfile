@@ -14,7 +14,11 @@ RUN curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | b
 # Copy requirements
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install CPU-only torch first to prevent pip from pulling CUDA/GPU variants
+# (sentence-transformers depends on torch; without this, pip downloads ~3GB of NVIDIA packages)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application

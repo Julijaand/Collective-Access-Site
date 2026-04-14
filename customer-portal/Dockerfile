@@ -5,19 +5,14 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # Stage 2 — build
+# NEXT_PUBLIC_* URLs are baked into the bundle during npm run build.
+# Values come from .env.production (gitignored, like secrets.nebius.env).
+# Copy .env.production.template → .env.production, fill in domain, then docker build.
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG NEXT_PUBLIC_API_URL=https://api.portal.192.168.49.2.nip.io
-ARG NEXT_PUBLIC_WS_URL=wss://api.portal.192.168.49.2.nip.io
-ARG NEXT_PUBLIC_APP_URL=https://portal.192.168.49.2.nip.io
-ARG NEXT_PUBLIC_APP_NAME="Collective Access Portal"
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
-ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
-ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
 RUN npm run build
 
 # Stage 3 — runner

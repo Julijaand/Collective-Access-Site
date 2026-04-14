@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base layer — environment-agnostic manifests.
+# Uses minikube defaults: selfsigned cert, no storageClassName, local nip.io domain.
+# Overlays (nebius/, production/) patch only what differs per environment.
+#
+# NOTE: paths go outside this directory (../../saas-backend/k8s/...).
+# kubectl apply -k does NOT support this. Use the kustomize CLI instead:
+#   kustomize build --load-restrictor LoadRestrictionsNone k8s/overlays/nebius/ | kubectl apply -f -
+# deploy-nebius.sh handles this automatically.
+
+namespace: ca-system
+
+resources:
+  # ── Storage (no storageClassName — cloud overlays add network-ssd) ─────────
+  - ../../saas-backend/k8s/ai-pvc.yaml
+  - ../../saas-backend/k8s/postgres-pvc.yaml
+  - ../../saas-backend/k8s/ollama-deployment.yaml   # multi-doc: PVC + Deployment + Service
+
+  # ── MySQL (shared DB for tenant CollectiveAccess instances) ────────────────
+  - ../../saas-backend/k8s/mysql-deployment.yaml
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  - ../../saas-backend/k8s/postgres-deployment.yaml
+  - ../../saas-backend/k8s/postgres-service.yaml
+
+  # ── RBAC (ServiceAccount + ClusterRole + ClusterRoleBinding) ───────────────
+  - ../../saas-backend/k8s/saas-backend-rbac.yaml
+
+  # ── saas-backend ────────────────────────────────────────────────────────────
+  - ../../saas-backend/k8s/deployment.yaml
+  - ../../saas-backend/k8s/service.yaml
+  - ../../saas-backend/k8s/ingress.yaml
+
+  # ── Customer portal ─────────────────────────────────────────────────────────
+  - ../../customer-portal/k8s/configmap.yaml
+  - ../../customer-portal/k8s/deployment.yaml
+  - ../../customer-portal/k8s/service.yaml
+  - ../../customer-portal/k8s/ingress.yaml
+
+  # ── Jobs ────────────────────────────────────────────────────────────────────
+  - ../../saas-backend/k8s/ai-ingest-job.yaml

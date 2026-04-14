@@ -48,15 +48,17 @@ spec:
             httpGet:
               path: /
               port: 80
-            initialDelaySeconds: 60
-            periodSeconds: 10
+            initialDelaySeconds: 300  # CA first-boot takes 10-20 min
+            periodSeconds: 30
+            failureThreshold: 5
 
           readinessProbe:
             httpGet:
               path: /
               port: 80
-            initialDelaySeconds: 30
-            periodSeconds: 5
+            initialDelaySeconds: 180  # wait 3 min before first check
+            periodSeconds: 15
+            failureThreshold: 60  # allow 60x15s = 15 more min of retries
 
           resources:
             requests:

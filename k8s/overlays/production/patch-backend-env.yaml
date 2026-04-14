@@ -1,0 +1,16 @@
+# Replace yoursaas.com with your actual domain before deploying.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas-backend
+  namespace: ca-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: backend
+        env:
+        - name: BASE_DOMAIN
+          value: "yoursaas.com"
+        - name: CA_CERT_ISSUER
+          value: "letsencrypt"

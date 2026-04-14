@@ -1,0 +1,14 @@
+# JSON patch — replaces specific fields in the saas-backend Ingress.
+# ~1 is the JSON Pointer escape for / in annotation keys.
+- op: replace
+  path: /metadata/annotations/cert-manager.io~1cluster-issuer
+  value: letsencrypt
+- op: replace
+  path: /metadata/annotations/nginx.ingress.kubernetes.io~1cors-allow-origin
+  value: "https://portal.89.169.109.158.nip.io"
+- op: replace
+  path: /spec/tls/0/hosts/0
+  value: "api.portal.89.169.109.158.nip.io"
+- op: replace
+  path: /spec/rules/0/host
+  value: "api.portal.89.169.109.158.nip.io"
