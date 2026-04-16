@@ -69,7 +69,7 @@ echo ""
 if [[ -f "$PROJECT_ROOT/secrets.nebius.env" ]]; then
   source "$PROJECT_ROOT/secrets.nebius.env"
 fi
-DOMAIN="${DOMAIN:-89.169.120.70.nip.io}"
+DOMAIN="${DOMAIN:-<LB-IP>.nip.io}"
 
 echo "Health check (once pods are Running):"
 echo "  curl https://api.portal.${DOMAIN}/health"

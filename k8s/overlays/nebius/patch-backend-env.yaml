@@ -12,8 +12,8 @@ spec:
       - name: backend
         env:
         - name: BASE_DOMAIN
-          value: "89.169.109.158.nip.io"
+          value: "collective-museum.com"
         - name: CA_CERT_ISSUER
           value: "letsencrypt"
         - name: APP_URL
-          value: "https://portal.89.169.109.158.nip.io"
+          value: "https://collective-museum.com"

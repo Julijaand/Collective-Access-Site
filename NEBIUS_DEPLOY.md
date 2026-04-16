@@ -225,19 +225,160 @@ kubectl create namespace ca-system
 
 ## Step 5 — DNS
 
-**Testing with nip.io (no domain needed):**  
-Use `<LB-IP>.nip.io` — it resolves automatically to your IP:
+### Option A — Testing with nip.io (no domain needed)
+
+Use `<LB-IP>.nip.io` — it resolves automatically to your IP, no DNS setup required:
 ```
-portal.<LB-IP>.nip.io         → customer portal
-api.portal.<LB-IP>.nip.io     → saas-backend API
+<LB-IP>.nip.io            → customer frontend
+api.<LB-IP>.nip.io        → saas-backend API
+```
+Set `DOMAIN=<LB-IP>.nip.io` in `secrets.nebius.env` and skip the rest of this step.
+
+---
+
+### Option B — Production with Cloudflare (real domain)
+
+#### 1. Add DNS records in Cloudflare
+
+1. Go to **[dash.cloudflare.com](https://dash.cloudflare.com)** → click your domain
+2. **DNS** → **Records** → **Add record** — create all three:
+
+| Type | Name | IPv4 address | Proxy status |
+|------|------|-------------|------------------|
+| A | `@` (root) | `<LB-IP from Step 4>` | **DNS only** (grey ☁️) |
+| A | `api` | `<LB-IP from Step 4>` | **DNS only** (grey ☁️) |
+| A | `*` | `<LB-IP from Step 4>` | **DNS only** (grey ☁️) |
+
+**What each record does:**
+- `@` (root) → `yourdomain.com` — customer-facing Next.js frontend
+- `api` → `api.yourdomain.com` — FastAPI backend
+- `*` (wildcard) → `tenant1.yourdomain.com`, `tenant2.yourdomain.com` etc. — CA tenants each get a dynamic subdomain at provisioning time
+
+> Subdomain names are configurable via `APP_SUBDOMAIN` and `API_SUBDOMAIN` in `secrets.nebius.env`.
+> Match whatever subdomains you set here to your DNS records above.
+
+> ⚠️ **Start with DNS only (grey ☁️) — do NOT enable the orange Cloudflare proxy yet.**
+> cert-manager uses Let's Encrypt HTTP-01 challenge to issue TLS certificates. With the proxy ON,
+> Let's Encrypt hits Cloudflare's edge instead of your nginx — the challenge fails and no certificate
+> is issued. Keep DNS only until certs are confirmed `READY: True` (Step 9), then follow
+> [**§ Enable Cloudflare Proxy**](#enable-cloudflare-proxy-optional-but-recommended) below.
+
+---
+
+#### Enable Cloudflare Proxy (optional but recommended)
+
+Enables DDoS protection, WAF, CDN caching and hides your origin server IP behind Cloudflare.
+
+> ⚠️ **Prerequisites before enabling proxy:**
+> - All certs must be `READY: True`: `kubectl get certificate -n ca-system`
+> - `CLOUDFLARE_API_TOKEN` must be set in `secrets.nebius.env` and `./deploy-secrets.sh` run
+> - [k8s/letsencrypt-issuer.yaml](k8s/letsencrypt-issuer.yaml) must use `dns01` solver (already updated)
+
+**Step A — Create Cloudflare API Token**
+1. Go to [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+2. **Create Token** → use template **"Edit zone DNS"**
+3. Under **Zone Resources** → select your domain
+4. Copy the token → add to `secrets.nebius.env`:
+   ```
+   CLOUDFLARE_API_TOKEN=your_token_here
+   ```
+5. Apply:
+   ```bash
+   RECREATE=true ./deploy-secrets.sh
+   ```
+
+**Step B — Switch cert-manager to DNS-01 challenge**
+```bash
+# Apply the updated ClusterIssuer (already uses dns01 solver)
+kubectl apply -f k8s/letsencrypt-issuer.yaml
 ```
 
-**Production with real domain:**  
-In your DNS provider (Cloudflare recommended), create a wildcard A record:
+**Step C — Force certificate renewal**
+```bash
+# Delete existing certs — cert-manager will re-request via DNS-01
+kubectl delete certificate customer-portal-tls saas-backend-tls -n ca-system
+kubectl delete secret customer-portal-tls saas-backend-tls -n ca-system
+
+# Watch re-issuance (takes ~1-2 min)
+kubectl get certificate -n ca-system -w
+# Wait for READY = True on all certs before proceeding
 ```
-*.yoursaas.com  →  <EXTERNAL-IP from Step 3>
+
+**Step D — Enable orange proxy in Cloudflare**
+1. Cloudflare Dashboard → **DNS** → **Records**
+2. Click the grey ☁️ on `@` (root) and `api` records → toggle to orange 🟠
+3. Leave `*` (wildcard) as **DNS only** — Cloudflare free plan does not proxy wildcard records
+
+**Step E — Set SSL/TLS mode to Full (strict)**
+1. Cloudflare Dashboard → **SSL/TLS** → **Overview**
+2. Select **Full (strict)** — validates that your nginx cert is a real trusted cert (Let's Encrypt ✅)
+   - *Full* (without strict) accepts any cert including self-signed — less secure
+   - *Flexible* sends plain HTTP to your server — never use this
+
+| What you gain with proxy 🟠 | |
+|---|---|
+| DDoS protection | ✅ |
+| Hides origin server IP | ✅ |
+| Cloudflare WAF | ✅ |
+| Free CDN / caching | ✅ |
+| Cert issuance method | DNS-01 via Cloudflare API |
+
+#### 2. Update secrets.nebius.env
+
+```bash
+# Edit secrets.nebius.env:
+DOMAIN=yourdomain.com   # e.g. collective-museum.com
 ```
-Then update `k8s/overlays/production/patch-*.yaml` with your domain.
+
+#### 3. Regenerate overlay patches
+
+`configure-nebius.sh` reads `DOMAIN` from `secrets.nebius.env` and rewrites all overlay patch files:
+
+```bash
+./configure-nebius.sh
+# Output confirms:
+#   BASE_DOMAIN   = yourdomain.com
+#   PORTAL_HOST   = yourdomain.com
+#   API_HOST      = api.yourdomain.com
+#   CERT_ISSUER   = letsencrypt
+```
+
+Files regenerated:
+- `k8s/overlays/nebius/patch-backend-env.yaml` — `BASE_DOMAIN`, `APP_URL`
+- `k8s/overlays/nebius/patch-backend-ingress.yaml` — ingress host, CORS origin, cert issuer
+- `k8s/overlays/nebius/patch-portal-ingress.yaml` — ingress host, cert issuer
+- `k8s/overlays/nebius/patch-portal-configmap.yaml` — `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`
+- `customer-portal/.env.production` — baked into the Next.js Docker image at build time
+
+#### 4. Rebuild the customer-portal image
+
+`NEXT_PUBLIC_*` URLs are **baked into the Next.js bundle at build time** — the running image won't
+pick up the new domain from the configmap. Rebuild and push:
+
+```bash
+cd customer-portal
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t julijaand/customer-portal:latest --push .
+```
+
+> ⚠️ Always use `--platform linux/amd64,linux/arm64`. Building on Apple Silicon produces an `arm64`-only
+> image — Nebius nodes are `linux/amd64` and pods will fail with `ErrImagePull: no match for platform`.
+
+Verify both platforms are present:
+```bash
+docker manifest inspect julijaand/customer-portal:latest | grep architecture
+# should show both: "arm64" and "amd64"
+```
+
+#### 5. Verify DNS propagation (optional)
+
+```bash
+# Should return your LB IP
+dig +short yourdomain.com
+dig +short api.yourdomain.com
+```
+
+DNS typically propagates within 1–5 minutes on Cloudflare.
 
 ---
 
@@ -302,23 +443,23 @@ To add a new environment, copy `overlays/nebius/` and update the domain values i
 ```bash
 cd /path/to/Collective-Access-Site
 
+# 0. (Optional) Preview rendered manifests without applying anything
+./deploy-nebius.sh --dry-run
+
 # 1. Update domain in secrets and regenerate overlay files
-#    (required any time the LB IP changes — i.e. every fresh cluster)
-#    Edit secrets.nebius.env: DOMAIN=<NEW_LB_IP>.nip.io
+#    (required any time the domain or LB IP changes)
+#    Edit secrets.nebius.env: DOMAIN=yourdomain.com (or <LB-IP>.nip.io for testing)
 ./configure-nebius.sh
 
-# 2. Secrets (once, or when rotating)
+# 2. Create / update all K8s secrets (once, or when rotating keys)
 ./deploy-secrets.sh
 
-# 3. Full deploy (idempotent — safe to re-run)
+# 3. Full deploy — applies all manifests (idempotent, safe to re-run)
 ./deploy-nebius.sh
 
-# 4. Force-restart backend to ensure it picked up secrets at a clean boot
+# 4. Force-restart backend to ensure it reads secrets from a clean boot
 #    (pods may start before secrets are fully ready on a fresh cluster)
 kubectl rollout restart deployment/saas-backend -n ca-system
-
-# Preview without applying:
-./deploy-nebius.sh --dry-run
 ```
 
 `deploy-nebius.sh` uses `kustomize build --load-restrictor LoadRestrictionsNone` (required because the base references files outside `k8s/`) piped into `kubectl apply -f -`.
@@ -334,6 +475,7 @@ kubectl rollout restart deployment/saas-backend -n ca-system
 
 ## Step 9 — Verify Deployment
 
+### Pods
 ```bash
 # All pods should be Running (except ai-ingest which will be Completed)
 kubectl get pods -n ca-system
@@ -344,17 +486,48 @@ kubectl get pods -n ca-system
 # ollama-xxx            1/1  Running    ← LLM (slow first start — pulling llama3.2)
 # saas-backend-xxx      1/1  Running    ← FastAPI backend (2 replicas)
 # ai-ingest-xxx         0/1  Completed  ← one-off vector DB population job
+```
 
-# TLS certificates (issued by Let's Encrypt)
+### TLS Certificates
+```bash
+# READY should be True for all certs
 kubectl get certificate -n ca-system
-# READY should be True for both customer-portal-tls and saas-backend-tls
 
-# Health check
-curl -s https://api.portal.<LB-IP>.nip.io/health
-# Expected: {"status":"ok","version":"1.0.0","database":"connected","kubernetes":"connected"}
+# If a cert is stuck False, check why:
+kubectl describe certificate <cert-name> -n ca-system | tail -20
+kubectl logs -n cert-manager -l app=cert-manager --tail=30
+```
 
-# Ingress with LB IP assigned
+### Ingress & LoadBalancer
+```bash
+# Confirm LB IP is assigned (not <pending>) and hosts are correct
 kubectl get ingress -n ca-system
+```
+
+### API Health Check
+```bash
+curl -s https://api.collective-museum.com/health
+# Expected: {"status":"ok","version":"1.0.0","database":"connected","kubernetes":"connected"}
+```
+
+### Cloudflare Proxy (after enabling orange cloud 🟠)
+```bash
+# 1. IP should be a Cloudflare IP (104.21.x.x or 172.67.x.x), NOT your Nebius LB IP
+dig +short collective-museum.com
+
+# 2. Response headers should show cloudflare server + cf-ray header
+curl -sI https://collective-museum.com | grep -i "cf-ray\|server"
+# Expected:
+#   server: cloudflare
+#   cf-ray: xxxxxxxxxxxxxxxx-AMS
+
+# 3. API must still work through the proxy
+curl -s https://api.collective-museum.com/health
+# Expected: {"status":"ok",...}
+
+# 4. Check SSL cert issuer (should be Let's Encrypt, not Cloudflare self-signed)
+curl -sv https://collective-museum.com 2>&1 | grep -i "issuer"
+# Expected: issuer: C=US; O=Let's Encrypt; CN=R10
 ```
 
 ---
@@ -364,7 +537,7 @@ kubectl get ingress -n ca-system
 1. Go to **[dashboard.stripe.com/test/webhooks](https://dashboard.stripe.com/test/webhooks)**
 2. Click **"Add destination"** → choose **Webhook**
 3. Set:
-   - **URL:** `https://api.portal.<LB-IP>.nip.io/api/stripe/webhook`
+   - **URL:** `https://api.collective-museum.com/api/stripe/webhook` (or your domain)
    - **Events:** `checkout.session.completed`, `customer.subscription.deleted`, `invoice.payment_failed`
 4. After saving, click **"Reveal"** under *Signing secret* → copy the `whsec_...` value
 5. If the secret differs from what's in `saas-backend-secrets`, update it:
@@ -381,8 +554,10 @@ kubectl get ingress -n ca-system
 The database is empty on first deploy — go to the portal URL and **sign up** (no email verification required):
 
 ```
-https://portal.89.169.111.222.nip.io/login
+https://collective-museum.com/login
 ```
+
+> For nip.io deployments: `https://<LB-IP>.nip.io/login`
 
 ---
 

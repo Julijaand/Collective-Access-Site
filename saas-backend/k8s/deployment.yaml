@@ -51,7 +51,7 @@ spec:
           value: "/app/k8s/helm/collectiveaccess"
 
         - name: BASE_DOMAIN
-          value: "192.168.49.2.nip.io"
+          value: "DOMAIN_PLACEHOLDER"  # overridden by kustomize overlay (configure-nebius.sh)
 
         - name: DB_HOST
           value: "mysql.ca-system.svc.cluster.local"

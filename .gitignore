@@ -33,7 +33,10 @@ backups/
 *.env
 .env
 .env.*
-saas-backend/saas-backend-secrets.yaml
+# saas-backend k8s secrets (real values — apply via deploy-secrets.sh, never commit)
+saas-backend/k8s/saas-backend-secrets.yaml
+saas-backend/k8s/postgres-secret.yaml
+saas-backend/k8s/ca-saas-db-secret.yaml
 saas-backend/*.secrets.yaml
 ca-docker/*.secrets.yaml
 *.secrets.yaml
