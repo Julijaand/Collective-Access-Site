@@ -5,10 +5,10 @@
   value: letsencrypt
 - op: replace
   path: /metadata/annotations/nginx.ingress.kubernetes.io~1cors-allow-origin
-  value: "https://portal.89.169.109.158.nip.io"
+  value: "https://collective-museum.com"
 - op: replace
   path: /spec/tls/0/hosts/0
-  value: "api.portal.89.169.109.158.nip.io"
+  value: "api.collective-museum.com"
 - op: replace
   path: /spec/rules/0/host
-  value: "api.portal.89.169.109.158.nip.io"
+  value: "api.collective-museum.com"

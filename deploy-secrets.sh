@@ -82,6 +82,28 @@ apply_secret customer-portal-secret \
 apply_secret mysql-root-password \
   --from-literal=mysql-root-password="$MYSQL_ROOT_PASSWORD"
 
+# ── Cloudflare API token (cert-manager namespace, for DNS-01 challenge) ───────
+echo "--- Creating Cloudflare token secret in namespace: cert-manager ---"
+if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+  if kubectl get secret cloudflare-api-token -n cert-manager &>/dev/null; then
+    if [[ "$RECREATE" == "true" ]]; then
+      echo "🔄 Recreating secret: cloudflare-api-token"
+      kubectl delete secret cloudflare-api-token -n cert-manager
+    else
+      echo "⏭️  Secret already exists (skipping): cloudflare-api-token  — use RECREATE=true to overwrite"
+    fi
+  fi
+  if ! kubectl get secret cloudflare-api-token -n cert-manager &>/dev/null; then
+    kubectl create secret generic cloudflare-api-token \
+      --from-literal=api-token="$CLOUDFLARE_API_TOKEN" \
+      -n cert-manager
+    echo "✅ Created: cloudflare-api-token (cert-manager)"
+  fi
+else
+  echo "⚠️  CLOUDFLARE_API_TOKEN not set — skipping cloudflare-api-token secret."
+  echo "   Set it in $ENV_FILE if you want Cloudflare proxy / DNS-01 TLS."
+fi
+
 echo ""
 echo "🎉 All secrets created successfully!"
 echo ""
