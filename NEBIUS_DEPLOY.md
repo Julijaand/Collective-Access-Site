@@ -229,8 +229,8 @@ kubectl create namespace ca-system
 
 Use `<LB-IP>.nip.io` — it resolves automatically to your IP, no DNS setup required:
 ```
-portal.<LB-IP>.nip.io         → customer portal
-api.portal.<LB-IP>.nip.io     → saas-backend API
+<LB-IP>.nip.io            → customer frontend
+api.<LB-IP>.nip.io        → saas-backend API
 ```
 Set `DOMAIN=<LB-IP>.nip.io` in `secrets.nebius.env` and skip the rest of this step.
 
@@ -338,8 +338,8 @@ DOMAIN=yourdomain.com   # e.g. collective-museum.com
 ./configure-nebius.sh
 # Output confirms:
 #   BASE_DOMAIN   = yourdomain.com
-#   PORTAL_HOST   = portal.yourdomain.com
-#   API_HOST      = api.portal.yourdomain.com
+#   PORTAL_HOST   = yourdomain.com
+#   API_HOST      = api.yourdomain.com
 #   CERT_ISSUER   = letsencrypt
 ```
 
@@ -374,8 +374,8 @@ docker manifest inspect julijaand/customer-portal:latest | grep architecture
 
 ```bash
 # Should return your LB IP
-dig +short portal.yourdomain.com
-dig +short api.portal.yourdomain.com
+dig +short yourdomain.com
+dig +short api.yourdomain.com
 ```
 
 DNS typically propagates within 1–5 minutes on Cloudflare.
@@ -537,7 +537,7 @@ curl -sv https://collective-museum.com 2>&1 | grep -i "issuer"
 1. Go to **[dashboard.stripe.com/test/webhooks](https://dashboard.stripe.com/test/webhooks)**
 2. Click **"Add destination"** → choose **Webhook**
 3. Set:
-   - **URL:** `https://api.portal.collective-museum.com/api/stripe/webhook` (or your domain)
+   - **URL:** `https://api.collective-museum.com/api/stripe/webhook` (or your domain)
    - **Events:** `checkout.session.completed`, `customer.subscription.deleted`, `invoice.payment_failed`
 4. After saving, click **"Reveal"** under *Signing secret* → copy the `whsec_...` value
 5. If the secret differs from what's in `saas-backend-secrets`, update it:
