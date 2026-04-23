@@ -68,3 +68,5 @@ out/
 dist/
 build/
 secrets.nebius.env
+
+figma_notes.md

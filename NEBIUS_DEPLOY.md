@@ -22,6 +22,8 @@
 - Docker Hub account with **multi-platform** images pushed (see Step 0)
 - Stripe account (test or live keys)
 
+> `sed` is used for variable substitution in yaml files — it's built into macOS, no install needed.
+
 ---
 
 ## Step 0 — Build & Push Multi-Platform Docker Images
@@ -211,8 +213,8 @@ helm install cert-manager jetstack/cert-manager \
   --namespace cert-manager --create-namespace \
   --set crds.enabled=true
 
-# Let's Encrypt ClusterIssuer
-kubectl apply -f k8s/letsencrypt-issuer.yaml
+# Let's Encrypt ClusterIssuer (LETSENCRYPT_EMAIL is read from secrets.nebius.env)
+source secrets.nebius.env && sed "s|\${LETSENCRYPT_EMAIL}|${LETSENCRYPT_EMAIL}|g" k8s/letsencrypt-issuer.yaml | kubectl apply -f -
 
 # Create app namespace
 kubectl create namespace ca-system
@@ -290,7 +292,7 @@ Enables DDoS protection, WAF, CDN caching and hides your origin server IP behind
 **Step B — Switch cert-manager to DNS-01 challenge**
 ```bash
 # Apply the updated ClusterIssuer (already uses dns01 solver)
-kubectl apply -f k8s/letsencrypt-issuer.yaml
+source secrets.nebius.env && sed "s|\${LETSENCRYPT_EMAIL}|${LETSENCRYPT_EMAIL}|g" k8s/letsencrypt-issuer.yaml | kubectl apply -f -
 ```
 
 **Step C — Force certificate renewal**
