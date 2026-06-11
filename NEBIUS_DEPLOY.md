@@ -5,8 +5,8 @@
 
 | Variable | Current value |
 |---|---|
-| **Cluster name** | `brown-orangutan-cluster-8` |
-| **Cluster ID** | `mk8scluster-e00nyd0fmnh7z6r8ak` |
+| **Cluster name** | `aquamarine-wren-cluster-8` |
+| **Cluster ID** | `mk8scluster-e00vkf2ahh3tk6neha` |
 | **Region** | `eu-north1` |
 | **Project ID** | `project-e00tq1vbpr00t31ecxsw93` |
 | **LoadBalancer IP** | *(filled after Step 4 — `kubectl get svc -n ingress-nginx ingress-nginx-controller`)* |
@@ -30,7 +30,7 @@
 
 Nebius nodes run `linux/amd64`. If you build on Apple Silicon (M-chip Mac), images are `arm64` by default and pods will fail with `ErrImagePull: no match for platform in manifest`.
 
-Build all three images as multi-platform before deploying:
+Build all images as multi-platform before deploying:
 
 ```bash
 # Create builder once (reuse on subsequent builds)
@@ -42,14 +42,19 @@ docker buildx build --platform linux/amd64,linux/arm64 \
   -t julijaand/customer-portal:latest --push .
 
 # 2. saas-backend
-cd ../saas-backend
+cd saas-backend
 docker buildx build --platform linux/amd64,linux/arm64 \
   -t julijaand/saas-backend:latest --push .
 
 # 3. CollectiveAccess (tenant image)
-cd ../ca-docker
+cd ca-docker
 docker buildx build --platform linux/amd64,linux/arm64 \
   -t julijaand/collectiveaccess:latest --push .
+
+# 4. ca-agent (from saas-backend/ root — Dockerfile is at ca_agent/Dockerfile)
+cd ../saas-backend
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -f ca_agent/Dockerfile -t julijaand/ca-agent:latest --push .
 ```
 
 Verify platforms on Docker Hub:
@@ -148,9 +153,10 @@ The cluster needs nodes before any workloads can run.
 | **Computing resources** | GPU | ❌ No GPU |
 | | Platform | `cpu-e2` |
 | | Preset | `4 vCPU / 16 GB` |
+| | **Operating system** | `Ubuntu 24.04 LTS` |
 | **Scale** | Type | Fixed |
 | | Node count | `2` |
-| **Node storage** | Disk type | `network-ssd` |
+| **Node storage** | Disk type | `network-ssd` (shown as **SSD** in new UI) |
 | | Size | `64 GiB` |
 | **Network** | Assign public IPv4 | ✅ Yes (nodes need internet to pull Docker images) |
 | **Access** | Credentials name | `nebius-nodes` |
@@ -158,6 +164,8 @@ The cluster needs nodes before any workloads can run.
 | **Access** | Service account | leave empty |
 | **Additional** | Enable autoscaling | ❌ No |
 | | GPU drivers | ❌ No |
+
+> ⚠️ **OS dropdown empty?** This is a known Nebius UI issue. Select **Platform** and **Preset** first — the OS dropdown may then populate. If it remains empty, use the CLI command below instead.
 
 4. Click **Create**
 
@@ -179,9 +187,13 @@ nebius mk8s node-group create \
   --fixed-node-count 2 \
   --template-resources-platform cpu-e2 \
   --template-resources-preset 4vcpu-16gb \
-  --template-boot-disk-type network-ssd \
-  --template-boot-disk-size-gibibytes 64
+  --template-os ubuntu-24-04-lts \
+  --template-boot-disk-type NETWORK_SSD \
+  --template-boot-disk-size-gibibytes 64 \
+  --template-network-interfaces '[{"public_ip_address": {}}]'
 ```
+
+> 💡 **CLI is the recommended workaround** if the OS dropdown in the web console shows no options.
 
 Wait for nodes to be `Ready`:
 ```bash
@@ -634,10 +646,10 @@ Each CA tenant pod uses ~500m CPU / 512Mi RAM + 20Gi storage.
 
 | Resource | Value |
 |---|---|
-| Cluster name | `brown-orangutan-cluster-8` |
-| Cluster ID | `mk8scluster-e00nyd0fmnh7z6r8ak` |
+| Cluster name | `aquamarine-wren-cluster-8` |
+| Cluster ID | `mk8scluster-e00vkf2ahh3tk6neha` |
 | Project ID | `project-e00tq1vbpr00t31ecxsw93` |
-| Public endpoint | `https://pu.mk8scluster-e00nyd0fmnh7z6r8ak.mk8s.eu-north1.nebius.cloud:443` |
-| Private endpoint | `https://pr.mk8scluster-e00nyd0fmnh7z6r8ak.mk8s.eu-north1.nebius.cloud:443` |
+| Public endpoint | `https://pu.mk8scluster-e00vkf2ahh3tk6neha.mk8s.eu-north1.nebius.cloud:443` |
+| Private endpoint | `https://pr.mk8scluster-e00vkf2ahh3tk6neha.mk8s.eu-north1.nebius.cloud:443` |
 | LoadBalancer IP | *(see header table)* |
 | Storage class | `compute-csi-default-sc` |

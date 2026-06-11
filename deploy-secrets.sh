@@ -71,7 +71,8 @@ apply_secret saas-backend-secrets \
   --from-literal=stripe-secret-key="$STRIPE_SECRET_KEY" \
   --from-literal=stripe-webhook-secret="$STRIPE_WEBHOOK_SECRET" \
   --from-literal=db-password="$DB_PASSWORD" \
-  --from-literal=secret-key="$SECRET_KEY"
+  --from-literal=secret-key="$SECRET_KEY" \
+  --from-literal=openrouter-api-key="${LLM_API_KEY:-}"
 
 apply_secret ca-saas-db-secret \
   --from-literal=POSTGRES_PASSWORD="$DB_PASSWORD"
@@ -107,4 +108,14 @@ fi
 echo ""
 echo "🎉 All secrets created successfully!"
 echo ""
+
+# ── Clear stale ACME account key (safe on new cluster, no-op if already fresh) ─
+# On cluster recreate, the old letsencrypt account key in cert-manager namespace
+# causes "account does not exist" errors. Delete it so cert-manager re-registers.
+if kubectl get secret letsencrypt -n cert-manager &>/dev/null; then
+  echo "🔄 Clearing stale ACME account key (cert-manager/letsencrypt)..."
+  kubectl delete secret letsencrypt -n cert-manager
+  echo "✅ cert-manager will register a fresh Let's Encrypt account on next cert issuance."
+fi
+
 echo "Next: update manifests for domain $DOMAIN then run deploy-nebius.sh"

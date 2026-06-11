@@ -69,7 +69,12 @@ class Tenant(Base):
     # Admin credentials (generated during installation)
     ca_admin_username = Column(String, default="administrator")
     ca_admin_password = Column(String)  # Store initial password, user should change
+    ca_jwt_secret = Column(String, nullable=True)  # Per-tenant JWT signing key (graphql_services_jwt_token_key)
     
+    # Provisioning progress (set at each step during PROVISIONING state)
+    # Values: "namespace" | "database" | "helm" | "ca_install" | "finalizing" | None
+    provisioning_step = Column(String, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

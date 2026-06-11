@@ -84,3 +84,29 @@ export const chatApi = {
     return data
   },
 }
+
+// ---------------------------------------------------------------------------
+// CA Agent API — collection actions (search, create, edit records)
+// ---------------------------------------------------------------------------
+export interface AgentChatRequest {
+  message: string
+  tenant_id?: number
+  session_id?: string
+}
+
+export interface AgentChatResponse {
+  reply: string
+  session_id: string
+  action_taken?: string
+  records?: Record<string, unknown>[]
+  timestamp: string
+}
+
+export const agentApi = {
+  chat: async (req: AgentChatRequest): Promise<AgentChatResponse> => {
+    const { data } = await apiClient.post<AgentChatResponse>('/api/agent/chat', req, {
+      timeout: 60_000,
+    })
+    return data
+  },
+}

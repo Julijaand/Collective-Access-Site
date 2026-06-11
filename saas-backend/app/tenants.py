@@ -35,6 +35,7 @@ class TenantOut(BaseModel):
     domain: str
     plan: str
     status: TenantStatus
+    provisioning_step: Optional[str] = None
     ca_admin_username: Optional[str] = None
     ca_admin_password: Optional[str] = None
     created_at: datetime

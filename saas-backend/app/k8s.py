@@ -6,6 +6,7 @@ Phase 3: Automated tenant deployment via Kubernetes API and Helm
 import subprocess
 import logging
 import json
+import secrets as _secrets
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from .config import settings
@@ -115,6 +116,9 @@ class HelmManager:
         db_password: str,
         ca_app_name: str,
         admin_email: str,
+        jwt_secret: str = "",
+        admin_password: str = "",
+        install_profile: str = "default",
     ) -> tuple[bool, str]:
         """
         Install or upgrade a tenant Helm release (idempotent)
@@ -155,6 +159,9 @@ class HelmManager:
             "--set", f"app.instanceId={tenant_name}",
             "--set", f"app.tenantDisplayName={tenant_name}",
             "--set", f"app.caAppName={ca_app_name}",
+            "--set", f"app.jwtSecret={jwt_secret or _secrets.token_hex(32)}",
+            "--set", f"app.adminPassword={admin_password}",
+            "--set", f"app.installProfile={install_profile}",
         ]
 
         logger.info(f"Running Helm command: {' '.join(cmd)}")

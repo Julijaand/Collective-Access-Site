@@ -14,6 +14,9 @@ patches:
   # ── saas-backend Deployment: BASE_DOMAIN + CA_CERT_ISSUER env vars ─────────
   - path: patch-backend-env.yaml
 
+  # ── CA Agent Deployment: ALLOWED_ORIGINS ────────────────────────────────────
+  - path: patch-ca-agent-env.yaml
+
   # ── saas-backend Ingress: host, TLS, CORS origin, cert issuer ─────────────
   - path: patch-backend-ingress.yaml
     target:
@@ -38,10 +41,6 @@ patches:
     target:
       kind: PersistentVolumeClaim
       name: postgres-data-pvc
-  - path: patch-pvcs.yaml
-    target:
-      kind: PersistentVolumeClaim
-      name: ollama-models-pvc
   - path: patch-pvcs.yaml
     target:
       kind: PersistentVolumeClaim

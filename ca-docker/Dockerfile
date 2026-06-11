@@ -38,16 +38,23 @@ RUN git config --global --add safe.directory /var/www/html/ca
 
 # Install PHP dependencies via Composer
 WORKDIR /var/www/html/ca
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-security-blocking \
+RUN composer update --no-dev --optimize-autoloader --no-interaction --no-security-blocking \
     && chown -R www-data:www-data /var/www/html/ca
+
+# Disable XSD profile validation: profile.xsd is outdated vs default.xml (missing subTypeLeft etc.)
+# Replace !$this->validateProfile(...) with false so the if-block short-circuits to false and never aborts.
+RUN sed -i \
+    's/!\$this->validateProfile(\$directory, \$profile)/false/' \
+    /var/www/html/ca/install/inc/Parsers/XMLProfileParser.php
 
 # Copy configuration files
 COPY php/php.ini /usr/local/etc/php/php.ini
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY config/setup.php.template /config/setup.php.template
-COPY scripts/entrypoint.sh /entrypoint.sh
+COPY scripts/ /scripts/
+COPY assets/ /assets/
 
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /scripts/entrypoint.sh
 
 WORKDIR /var/www/html/ca
 
@@ -64,4 +71,4 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD php -r "exit(is_file('/var/www/html/ca/index.php') ? 0 : 1);"
 
-CMD ["/entrypoint.sh"]
+CMD ["/scripts/entrypoint.sh"]

@@ -1,4 +1,4 @@
-# Collective Access - Dockerized Deployment
+# Collective Access - Dockerized Deployment. Documents how to run the CA container locally via Docker Compose.
 
 Production-ready Docker containerization for [Collective Access](https://collectiveaccess.org/), the open-source collections management software for museums, archives, and galleries.
 

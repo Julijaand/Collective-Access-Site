@@ -38,6 +38,8 @@ export default function SignupPage() {
     setLoading(true)
     try {
       await register(data.email, data.password)
+      localStorage.removeItem('ca_portal_visited')
+      localStorage.removeItem('ca_portal_visited_dashboard')
       toast.success('Account created! Welcome aboard.')
       router.push('/dashboard')
     } catch (err: unknown) {

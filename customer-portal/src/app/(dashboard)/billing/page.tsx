@@ -40,7 +40,7 @@ export default function BillingPage() {
           if (res.status === 'provisioned') {
             toast.success('Payment successful! Your instance is being provisioned — check the Instances page in a few minutes.')
           } else if (res.status === 'already_provisioned') {
-            toast.success('Payment confirmed — your instance is already provisioned.')
+            toast.success('Payment confirmed — your instance is being provisioned. Check the Overview page in a few minutes.')
           } else {
             toast.info('Payment received. Provisioning will complete shortly.')
           }

@@ -77,6 +77,9 @@ spec:
         - name: CA_CERT_ISSUER
           value: "selfsigned"
 
+        - name: CA_INSTALL_PROFILE
+          value: "default"
+
         - name: SECRET_KEY
           valueFrom:
             secretKeyRef:
@@ -85,11 +88,16 @@ spec:
 
         - name: ACCESS_TOKEN_EXPIRE_MINUTES
           value: "1440"
-        # AI / RAG
-        - name: OLLAMA_BASE_URL
-          value: "http://ollama-svc:11434"
-        - name: OLLAMA_MODEL
-          value: "llama3.2:1b"
+        # AI / RAG — OpenRouter (external, OpenAI-compatible)
+        - name: LLM_BASE_URL
+          value: "https://openrouter.ai/api/v1"
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: saas-backend-secrets
+              key: openrouter-api-key
+        - name: LLM_MODEL
+          value: "deepseek/deepseek-v4-flash"
 
         volumeMounts:
         - name: vector-db
