@@ -6,6 +6,8 @@ metadata:
     app: {{ .Release.Name }}
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -17,6 +19,7 @@ spec:
       containers:
         - name: ca
           image: {{ .Values.image | quote }}
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
 
@@ -38,7 +41,29 @@ spec:
               value: {{ .Values.app.tenantDisplayName | quote }}
 
             - name: CA_APP_NAME
-              value: {{ .Values.app.caAppName | quote }}  
+              value: {{ .Values.app.caAppName | quote }}
+
+            - name: CA_JWT_SECRET
+              value: {{ .Values.app.jwtSecret | quote }}
+
+            - name: CA_ADMIN_PASSWORD
+              value: {{ .Values.app.adminPassword | quote }}
+
+            # Expose credentials under the names the PHP agent proxy expects
+            - name: CA_URL
+              value: "http://{{ .Release.Name }}.{{ .Release.Namespace }}.svc.cluster.local"
+
+            - name: CA_USERNAME
+              value: "administrator"
+
+            - name: CA_PASSWORD
+              value: {{ .Values.app.adminPassword | quote }}
+
+            - name: CA_AGENT_URL
+              value: "http://ca-agent.ca-system.svc.cluster.local:8001"
+
+            - name: CA_PROFILE
+              value: {{ .Values.app.installProfile | quote }}
 
           volumeMounts:
             - name: media

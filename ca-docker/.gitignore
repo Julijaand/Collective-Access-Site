@@ -1,5 +1,6 @@
 # Secrets — never commit real credentials
 .env
+!.env.example
 file.md
 
 # Docker volumes / generated data

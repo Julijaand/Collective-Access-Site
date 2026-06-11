@@ -33,14 +33,8 @@ backups/
 *.env
 .env
 .env.*
-# saas-backend k8s secrets (real values — apply via deploy-secrets.sh, never commit)
-saas-backend/k8s/saas-backend-secrets.yaml
-saas-backend/k8s/postgres-secret.yaml
-saas-backend/k8s/ca-saas-db-secret.yaml
-saas-backend/*.secrets.yaml
-ca-docker/*.secrets.yaml
-*.secrets.yaml
-k8s/mysql-root-password-secret.yaml
+!.env.template
+!**/.env.template
 
 # User-specified files to ignore
 saas-backend/some_improvements.md

@@ -103,6 +103,11 @@ class Settings(BaseSettings):
         description="cert-manager issuer for SSL certificates"
     )
     
+    CA_INSTALL_PROFILE: str = Field(
+        default="default",
+        description="CollectiveAccess installation profile (e.g. default, cdwalite, dacs)"
+    )
+
     # Storage
     CA_STORAGE_SIZE: str = Field(
         default="20Gi",

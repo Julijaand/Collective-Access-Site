@@ -16,7 +16,6 @@ resources:
   # ── Storage (no storageClassName — cloud overlays add network-ssd) ─────────
   - ../../saas-backend/k8s/ai-pvc.yaml
   - ../../saas-backend/k8s/postgres-pvc.yaml
-  - ../../saas-backend/k8s/ollama-deployment.yaml   # multi-doc: PVC + Deployment + Service
 
   # ── MySQL (shared DB for tenant CollectiveAccess instances) ────────────────
   - ../../saas-backend/k8s/mysql-deployment.yaml
@@ -32,6 +31,10 @@ resources:
   - ../../saas-backend/k8s/deployment.yaml
   - ../../saas-backend/k8s/service.yaml
   - ../../saas-backend/k8s/ingress.yaml
+
+  # ── CA Agent (per-tenant collection action service) ─────────────────────────
+  - ../../saas-backend/k8s/ca-agent-deployment.yaml
+  - ../../saas-backend/k8s/ca-agent-service.yaml
 
   # ── Customer portal ─────────────────────────────────────────────────────────
   - ../../customer-portal/k8s/configmap.yaml

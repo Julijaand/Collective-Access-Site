@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, ExternalLink, Cpu, HardDrive, MemoryStick } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Cpu, HardDrive, MemoryStick, Eye, EyeOff, Copy } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +16,7 @@ export default function TenantDetailPage() {
   const tenantId = Number(id)
   const { data: tenant, isLoading } = useTenant(tenantId)
   const { data: metrics, isLoading: metricsLoading } = useTenantMetrics(tenantId)
+  const [showPassword, setShowPassword] = useState(false)
 
   if (isLoading) {
     return (
@@ -68,6 +70,33 @@ export default function TenantDetailPage() {
           <div><p className="text-muted-foreground">Namespace</p><p className="font-mono text-xs">{tenant.namespace}</p></div>
         </CardContent>
       </Card>
+
+      {/* Credentials Card */}
+      {(tenant.ca_admin_username || tenant.ca_admin_password) && (
+        <Card>
+          <CardHeader><CardTitle>CollectiveAccess Login</CardTitle></CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground w-24">Username</span>
+              <span className="font-mono flex-1">{tenant.ca_admin_username ?? 'administrator'}</span>
+              <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(tenant.ca_admin_username ?? 'administrator')}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground w-24">Password</span>
+              <span className="font-mono flex-1">{showPassword ? (tenant.ca_admin_password ?? '—') : '••••••••••••'}</span>
+              <Button variant="ghost" size="icon" onClick={() => setShowPassword(v => !v)}>
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(tenant.ca_admin_password ?? '')}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground pt-1">Use these credentials to log in to your CollectiveAccess instance. Change the password after first login.</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Metrics */}
       <div className="grid gap-4 lg:grid-cols-3">

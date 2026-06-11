@@ -1,6 +1,6 @@
 """
 AI Chat endpoint — RAG-powered support chatbot
-Uses ChromaDB (vector search) + Ollama (LLM) + sentence-transformers (embeddings)
+Uses ChromaDB (vector search) + OpenRouter (LLM) + sentence-transformers (embeddings)
 """
 from pathlib import Path
 from typing import Optional, AsyncGenerator
@@ -26,10 +26,12 @@ AI_DIR = Path(__file__).parent.parent / "ai"
 VECTOR_DB_PATH = AI_DIR / "vector_db"
 COLLECTION_NAME = "ca_knowledge"
 
-# In-cluster: http://ollama-svc:11434  |  Local dev: http://localhost:11434
-OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://ollama-svc:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:latest")
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
+# OpenRouter config — OpenAI-compatible API for RAG chatbot
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://openrouter.ai/api/v1")
+LLM_API_KEY  = os.environ.get("LLM_API_KEY", "")
+LLM_MODEL    = os.environ.get("LLM_MODEL", "")
 
 # ── Pre-load at startup (avoids cold-start timeout on first request) ─────────
 _embedding = None
@@ -39,7 +41,6 @@ _llm = None
 try:
     from langchain_huggingface import HuggingFaceEmbeddings
     from langchain_chroma import Chroma
-    from langchain_ollama import OllamaLLM
 
     logger.info("Loading embedding model...")
     _embedding = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
@@ -52,13 +53,7 @@ try:
         )
         logger.info(f"Vector store loaded ({VECTOR_DB_PATH})")
 
-    _llm = OllamaLLM(
-        model=OLLAMA_MODEL,
-        base_url=OLLAMA_BASE_URL,
-        temperature=0.3,
-        request_timeout=120.0,  # 2 min — allows model cold-start load time
-    )
-    logger.info(f"Ollama LLM ready ({OLLAMA_MODEL} @ {OLLAMA_BASE_URL})")
+    logger.info("LLM will use OpenRouter via httpx (lazy init)")
 except Exception as _e:
     logger.warning(f"AI startup init failed (will retry on first request): {_e}")
 # ─────────────────────────────────────────────────────────────────────────────
@@ -100,30 +95,31 @@ def _get_vector_store():
     return None
 
 
-def _call_ollama(prompt: str) -> str:
-    """Call Ollama LLM using the pre-loaded singleton."""
-    global _llm
-    if _llm is None:
-        from langchain_ollama import OllamaLLM
-        _llm = OllamaLLM(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL, temperature=0.3, request_timeout=120.0)
-    return _llm.invoke(prompt).strip()
+def _call_llm(prompt: str) -> str:
+    """Call OpenRouter via OpenAI-compatible API (synchronous, runs in executor)."""
+    if not LLM_API_KEY:
+        raise RuntimeError("LLM_API_KEY is not set")
+    resp = httpx.post(
+        f"{LLM_BASE_URL}/chat/completions",
+        headers={"Authorization": f"Bearer {LLM_API_KEY}"},
+        json={
+            "model": LLM_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 256,
+            "temperature": 0.3,
+        },
+        timeout=60.0,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"].strip()
 
 
 def _build_prompt(question: str, context: str) -> str:
-    return f"""You are a helpful support assistant for Collective Access, an open-source collections management software.
-You help users of our SaaS platform manage their Collective Access instances.
+    ctx_block = f"\n\nContext:\n{context}" if context else ""
+    return f"""You are a concise support assistant for Collective Access SaaS. Answer in 3 sentences max. Use markdown only when essential.{ctx_block}
 
-Use the following knowledge base context to answer the user's question.
-If the context does not contain enough information, answer from your general knowledge about Collective Access.
-Be concise and friendly. Use markdown formatting when helpful.
-
---- CONTEXT ---
-{context}
---- END CONTEXT ---
-
-User question: {question}
-
-Answer:"""
+Q: {question}
+A:"""
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -172,12 +168,12 @@ async def chat(
         import asyncio
         prompt = _build_prompt(question, context)
         # Run blocking LLM call in a thread so it doesn't block the async event loop
-        reply = await asyncio.get_event_loop().run_in_executor(None, _call_ollama, prompt)
+        reply = await asyncio.get_event_loop().run_in_executor(None, _call_llm, prompt)
     except Exception as e:
-        logger.error(f"Ollama call failed: {e}")
+        logger.error(f"LLM call failed: {e}")
         raise HTTPException(
             status_code=503,
-            detail="AI service unavailable. Make sure Ollama is running: `ollama serve`",
+            detail="AI service unavailable. Check LLM provider configuration.",
         )
 
     return ChatResponse(reply=reply, sources=sources, used_rag=used_rag)
@@ -227,24 +223,32 @@ async def chat_stream(
             async with httpx.AsyncClient(timeout=120.0) as client:
                 async with client.stream(
                     "POST",
-                    f"{OLLAMA_BASE_URL}/api/generate",
-                    json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": True},
+                    f"{LLM_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {LLM_API_KEY}"},
+                    json={
+                        "model": LLM_MODEL,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 256,
+                        "temperature": 0.3,
+                        "stream": True,
+                    },
                 ) as resp:
                     async for line in resp.aiter_lines():
-                        if not line:
+                        if not line.startswith("data: "):
                             continue
-                        try:
-                            data = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        token = data.get("response", "")
-                        if token:
-                            yield f"data: {json.dumps({'token': token})}\n\n"
-                        if data.get("done"):
+                        data_str = line[6:]
+                        if data_str == "[DONE]":
                             yield f"data: {json.dumps({'done': True, 'sources': [s.dict() for s in sources], 'used_rag': used_rag})}\n\n"
                             return
+                        try:
+                            data = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+                        token = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                        if token:
+                            yield f"data: {json.dumps({'token': token})}\n\n"
         except Exception as e:
-            logger.error(f"Streaming Ollama call failed: {e}")
+            logger.error(f"Streaming LLM call failed: {e}")
             yield f"data: {json.dumps({'error': 'AI service unavailable'})}\n\n"
 
     return StreamingResponse(
@@ -259,21 +263,24 @@ async def chat_stream(
 
 @router.get("/chat/health")
 async def chat_health():
-    """Check if Ollama is reachable and vector DB is ready."""
-    ollama_ok = False
+    """Check if OpenRouter is reachable and vector DB is ready."""
+    llm_ok = False
     vector_db_ready = VECTOR_DB_PATH.exists()
-
     try:
-        import httpx
-        r = httpx.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=3)
-        ollama_ok = r.status_code == 200
+        r = httpx.get(f"{LLM_BASE_URL}/models",
+                      headers={"Authorization": f"Bearer {LLM_API_KEY}"},
+                      timeout=5)
+        llm_ok = r.status_code == 200
     except Exception:
         pass
 
     return {
-        "ollama": "ok" if ollama_ok else "unreachable — run `ollama serve`",
-        "ollama_url": OLLAMA_BASE_URL,
-        "ollama_model": OLLAMA_MODEL,
+        "llm": {
+            "provider": "openrouter",
+            "model": LLM_MODEL,
+            "base_url": LLM_BASE_URL,
+            "status": "ok" if llm_ok else "unreachable — check LLM_API_KEY",
+        },
         "vector_db": "ready" if vector_db_ready else "not ingested — run ai/ingest.py",
         "vector_db_path": str(VECTOR_DB_PATH),
     }

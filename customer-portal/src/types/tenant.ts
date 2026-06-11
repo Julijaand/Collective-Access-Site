@@ -11,11 +11,14 @@ export interface Tenant {
   namespace: string
   domain: string
   status: TenantStatus
+  provisioning_step?: string | null
   plan: 'starter' | 'pro' | 'museum' | 'enterprise'
   storage_gb: number
   max_users: number
   created_at: string
   updated_at: string
+  ca_admin_username?: string
+  ca_admin_password?: string
   metadata?: {
     helm_release?: string
     ingress_ip?: string

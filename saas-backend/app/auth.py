@@ -79,6 +79,7 @@ class LoginRequest(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: str
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

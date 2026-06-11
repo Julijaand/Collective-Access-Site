@@ -23,6 +23,10 @@ certIssuer: selfsigned
 # Application configuration
 app:
   timezone: Europe/Paris
-  adminEmail: julijaand111@gmail.com
+  adminEmail: admin@example.com
   instanceId: ""
+  adminPassword: ""
+  installProfile: "default"
   tenantDisplayName: ""
+  caAppName: ""
+  jwtSecret: ""  # Generated per-tenant at provisioning time (32+ chars for HS256)

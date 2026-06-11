@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ca-agent
+  namespace: ca-system
+  labels:
+    app: ca-agent
+spec:
+  selector:
+    app: ca-agent
+  ports:
+    - name: http
+      port: 8001
+      targetPort: 8001
+  type: ClusterIP

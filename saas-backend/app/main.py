@@ -3,7 +3,7 @@ Collective Access SaaS Backend - Main Application
 Phase 3: FastAPI application with tenant provisioning endpoints
 """
 import logging
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
@@ -28,6 +28,7 @@ from .teams import router as teams_router
 from .support import router as support_router
 from .backups import router as backups_router
 from .ai_chat import router as ai_chat_router
+from .agent import router as agent_router
 
 # Configure logging
 logging.basicConfig(
@@ -70,8 +71,11 @@ app.include_router(support_router)
 # Backup routes
 app.include_router(backups_router)
 
-# AI Chat routes
+# AI Chat routes (RAG — general help)
 app.include_router(ai_chat_router)
+
+# CA Agent routes (per-tenant collection actions)
+app.include_router(agent_router)
 
 
 # ============================================================================
@@ -89,26 +93,7 @@ async def startup_event():
         logger.error(f"Failed to initialize database: {e}")
         raise
 
-    # Warm up Ollama: send a tiny request so the model is loaded into memory
-    # before the first real user request hits (avoids cold-start timeout)
-    import asyncio
-    async def _warmup_ollama():
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=180.0) as client:
-                from .ai_chat import OLLAMA_BASE_URL, OLLAMA_MODEL
-                logger.info(f"Warming up Ollama model {OLLAMA_MODEL}...")
-                r = await client.post(
-                    f"{OLLAMA_BASE_URL}/api/generate",
-                    json={"model": OLLAMA_MODEL, "prompt": "hi", "stream": False},
-                )
-                if r.status_code == 200:
-                    logger.info("Ollama warm-up complete ✓")
-                else:
-                    logger.warning(f"Ollama warm-up returned {r.status_code}")
-        except Exception as e:
-            logger.warning(f"Ollama warm-up failed (non-fatal): {e}")
-    asyncio.create_task(_warmup_ollama())
+    # (OpenRouter LLM is external — no warmup needed)
 
 
 @app.on_event("shutdown")
@@ -206,37 +191,105 @@ async def get_tenant_by_namespace(namespace: str, db: Session = Depends(get_db))
 @app.post("/tenants/provision", response_model=ProvisioningResponse)
 async def provision_tenant(
     request: ProvisioningRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """
     Manually provision a new tenant (for testing/admin)
-    In production, this is triggered by Stripe webhooks
+    In production, this is triggered by Stripe webhooks.
+    Provisioning runs in the background — CA install takes 10-20 min.
+    Returns immediately with status=provisioning.
     """
-    provisioner = TenantProvisioner(db)
-    
-    tenant, error = provisioner.provision_tenant(
+    import uuid as _uuid
+    from .models import Tenant, TenantStatus, Subscription, ProvisioningLog, ProvisioningAction
+    from datetime import datetime
+
+    # Pre-create the tenant record so we can return an id immediately
+    tenant_suffix = _uuid.uuid4().hex[:8]
+    k8s_namespace = f"{settings.KUBERNETES_NAMESPACE_PREFIX}-{tenant_suffix}"
+    ca_app_name = f"tenant_{tenant_suffix}"
+    domain = f"{k8s_namespace}.{settings.BASE_DOMAIN}"
+    db_name = f"ca_{tenant_suffix}"
+    db_user = f"ca_{tenant_suffix}"
+    db_password = _uuid.uuid4().hex
+    ca_admin_password = _uuid.uuid4().hex[:12]
+    ca_jwt_secret = _uuid.uuid4().hex + _uuid.uuid4().hex
+
+    tenant = Tenant(
         user_id=request.user_id,
-        email=request.email,
+        namespace=k8s_namespace,
+        helm_release_name=k8s_namespace,
+        domain=domain,
         plan=request.plan,
-        stripe_subscription_id=request.stripe_subscription_id,
-        stripe_customer_id=request.stripe_customer_id
+        status=TenantStatus.PROVISIONING,
+        db_name=db_name,
+        db_user=db_user,
+        db_password=db_password,
+        ca_admin_username="administrator",
+        ca_admin_password=ca_admin_password,
+        ca_jwt_secret=ca_jwt_secret,
     )
-    
-    if error:
-        return {
-            "tenant_id": tenant.id if tenant else None,
-            "namespace": tenant.namespace if tenant else None,
-            "domain": tenant.domain if tenant else None,
-            "status": "failed",
-            "message": error
-        }
-    
+    db.add(tenant)
+    subscription = Subscription(
+        tenant_id=None,  # filled after flush
+        stripe_subscription_id=request.stripe_subscription_id or f"manual-{tenant_suffix}",
+        stripe_customer_id=request.stripe_customer_id or "",
+        stripe_price_id="",
+        status="active",
+        current_period_start=datetime.utcnow(),
+        current_period_end=datetime.utcnow(),
+    )
+    db.add(tenant)
+    db.flush()
+    subscription.tenant_id = tenant.id
+    db.add(subscription)
+    db.commit()
+    db.refresh(tenant)
+
+    # Run the slow part (Helm + wait for CA install + password reset) in background
+    def _do_provision():
+        from .database import SessionLocal as _SL
+        bg_db = _SL()
+        try:
+            provisioner = TenantProvisioner(bg_db)
+            provisioner._ensure_namespace(k8s_namespace)
+            provisioner._ensure_database(db_name, db_user, db_password)
+            provisioner._ensure_helm_release(
+                release=k8s_namespace,
+                namespace=k8s_namespace,
+                domain=domain,
+                plan=request.plan,
+                db_name=db_name,
+                db_user=db_user,
+                db_password=db_password,
+                ca_app_name=ca_app_name,
+                admin_email=request.email,
+                jwt_secret=ca_jwt_secret,
+            )
+            provisioner._wait_for_ca_ready(db_name, db_user, db_password, timeout=1800)
+            provisioner._set_ca_password(k8s_namespace, k8s_namespace, ca_admin_password)
+            t = bg_db.query(Tenant).filter(Tenant.id == tenant.id).first()
+            t.status = TenantStatus.ACTIVE
+            t.deployed_at = datetime.utcnow()
+            bg_db.commit()
+            logger.info(f"Background provisioning complete: {k8s_namespace}")
+        except Exception as e:
+            logger.exception(f"Background provisioning failed: {e}")
+            t = bg_db.query(Tenant).filter(Tenant.id == tenant.id).first()
+            if t:
+                t.status = TenantStatus.FAILED
+                bg_db.commit()
+        finally:
+            bg_db.close()
+
+    background_tasks.add_task(_do_provision)
+
     return {
         "tenant_id": tenant.id,
         "namespace": tenant.namespace,
         "domain": tenant.domain,
         "status": tenant.status,
-        "message": f"Tenant provisioned successfully. Access at https://{tenant.domain}"
+        "message": f"Provisioning started. CA is installing — check status in a few minutes. Access at https://{tenant.domain}"
     }
 
 

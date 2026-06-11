@@ -677,8 +677,8 @@ This will create a PostgreSQL instance accessible within your cluster as ca-saas
 #### Step 4: Build & Push Backend Image
 Build and push your backend Docker image:
 ```bash
-docker build -t your-registry/ca-saas-backend:latest .
-docker push your-registry/ca-saas-backend:latest
+docker build -t your-registry/saas-backend:latest .
+docker push your-registry/saas-backend:latest
 ```
 
 #### Step 5: Create Service Account & RBAC
@@ -835,8 +835,8 @@ Drop any `.md` file into `ai/docs/`, rebuild and push the backend image, then re
 
 ```bash
 # Rebuild image
-docker build -t julijaand/ca-saas-backend:latest .
-docker push julijaand/ca-saas-backend:latest
+docker build -t julijaand/saas-backend:latest .
+docker push julijaand/saas-backend:latest
 
 # Re-run ingest
 kubectl delete job ai-ingest -n ca-system --ignore-not-found
@@ -904,7 +904,7 @@ OLLAMA_BASE_URL=http://localhost:11434 uvicorn app.main:app --reload
 
 ```bash
 # Check logs
-docker logs ca-saas-backend
+docker logs saas-backend
 
 # Check database connection
 psql -U ca_saas -h localhost ca_saas

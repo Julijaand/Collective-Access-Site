@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ProvisioningProgress } from '@/components/dashboard/ProvisioningProgress'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTenants } from '@/lib/hooks/useTenants'
@@ -23,9 +24,9 @@ export default function TenantsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Instances</h1>
+        <h1 className="text-2xl font-bold">My Workspace</h1>
         <p className="text-muted-foreground mt-1">
-          Your Collective Access instances. Each subscription automatically provisions one dedicated instance.
+          Your dedicated Collective Access instance.
         </p>
       </div>
 
@@ -36,13 +37,13 @@ export default function TenantsPage() {
       ) : tenants?.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center py-12 text-center gap-4">
-            <p className="text-muted-foreground">No instances yet.</p>
+            <p className="text-muted-foreground">No workspace yet.</p>
             <p className="text-sm text-muted-foreground">
               Purchase a subscription on the{' '}
               <Link href="/billing" className="underline underline-offset-4 text-foreground">
                 Billing page
               </Link>{' '}
-              and your instance will be provisioned automatically.
+              and your workspace will be provisioned automatically.
             </p>
           </CardContent>
         </Card>
@@ -56,6 +57,7 @@ export default function TenantsPage() {
                   <Badge variant={STATUS_COLORS[tenant.status]}>{tenant.status}</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">{tenant.domain}</p>
+                <ProvisioningProgress step={tenant.provisioning_step} status={tenant.status} />
               </CardHeader>
               <CardContent className="flex-1 flex flex-col justify-end gap-2">
                 <div className="flex gap-2 pt-2">

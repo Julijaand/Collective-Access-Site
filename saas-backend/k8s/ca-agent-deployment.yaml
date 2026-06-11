@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ca-agent
+  namespace: ca-system
+  labels:
+    app: ca-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ca-agent
+  template:
+    metadata:
+      labels:
+        app: ca-agent
+    spec:
+      containers:
+      - name: ca-agent
+        image: julijaand/ca-agent:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8001
+
+        env:
+        # ── OpenRouter (routes to 100+ models via one key) ───────────────────
+        - name: LLM_BASE_URL
+          value: "https://openrouter.ai/api/v1"
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: saas-backend-secrets
+              key: openrouter-api-key
+        - name: LLM_MODEL
+          value: "deepseek/deepseek-v4-flash"
+
+        # CA_URL, CA_USERNAME, CA_PASSWORD are injected per-request by the
+        # saas-backend proxy — no static values needed here
+        - name: ALLOWED_ORIGINS
+          value: "https://DOMAIN_PLACEHOLDER"  # overridden by kustomize overlay
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 10
+          periodSeconds: 10
+
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"

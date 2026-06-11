@@ -120,24 +120,45 @@ class StripeWebhookHandler:
             logger.error(f"Cannot find user for checkout session (email={customer_email}, meta_user_id={user_id_meta})")
             return
         
-        # Provision tenant
-        logger.info(f"Provisioning tenant for {customer_email} (plan: {plan})")
-        
-        tenant, error = self.provisioner.provision_tenant(
+        # Provision tenant in a background thread so the webhook returns quickly
+        # (Stripe requires a response within 30s; CA install takes 10-20 min)
+        logger.info(f"Starting background provisioning for {customer_email} (plan: {plan})")
+
+        import threading
+        from .database import SessionLocal as _SL
+
+        captured = dict(
             user_id=user.id,
             email=customer_email,
             plan=plan,
-            stripe_subscription_id=subscription_id,
-            stripe_customer_id=customer_id,
-            stripe_event_id=event["id"]
+            subscription_id=subscription_id,
+            customer_id=customer_id,
+            event_id=event["id"],
         )
-        
-        if error:
-            logger.error(f"Provisioning failed: {error}")
-            # In production, send notification email to support
-        else:
-            logger.info(f"Successfully provisioned tenant: {tenant.namespace}")
-            # In production, send welcome email to customer
+
+        def _bg():
+            bg_db = _SL()
+            try:
+                from .provisioning import TenantProvisioner as _TP
+                p = _TP(bg_db)
+                tenant, error = p.provision_tenant(
+                    user_id=captured["user_id"],
+                    email=captured["email"],
+                    plan=captured["plan"],
+                    stripe_subscription_id=captured["subscription_id"],
+                    stripe_customer_id=captured["customer_id"],
+                    stripe_event_id=captured["event_id"],
+                )
+                if error:
+                    logger.error(f"Background provisioning failed: {error}")
+                else:
+                    logger.info(f"Background provisioning complete: {tenant.namespace}")
+            except Exception as e:
+                logger.exception(f"Background provisioning exception: {e}")
+            finally:
+                bg_db.close()
+
+        threading.Thread(target=_bg, daemon=True).start()
     
     def _handle_subscription_updated(self, event: dict):
         """

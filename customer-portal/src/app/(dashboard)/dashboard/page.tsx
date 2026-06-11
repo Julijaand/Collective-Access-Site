@@ -9,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { tenantsApi } from '@/lib/api/tenants'
 import { billingApi } from '@/lib/api/billing'
 import { useAuthStore } from '@/lib/stores/authStore'
+import { useTenants } from '@/lib/hooks/useTenants'
+import { ProvisioningProgress } from '@/components/dashboard/ProvisioningProgress'
 
 function StatCard({
   title, value, icon: Icon, loading,
@@ -47,10 +48,7 @@ export default function DashboardPage() {
     if (!visited) localStorage.setItem('ca_portal_visited_dashboard', '1')
   }, [])
 
-  const { data: tenants, isLoading: tenantsLoading } = useQuery({
-    queryKey: ['tenants'],
-    queryFn: tenantsApi.list,
-  })
+  const { data: tenants, isLoading: tenantsLoading } = useTenants()
 
   const { data: subscription, isLoading: subLoading } = useQuery({
     queryKey: ['subscription'],
@@ -116,7 +114,7 @@ export default function DashboardPage() {
                   <Badge variant={STATUS_VARIANT[tenant.status] ?? 'secondary'}>{tenant.status}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">{tenant.domain}</p>
-
+                <ProvisioningProgress step={tenant.provisioning_step} status={tenant.status} />
               </div>
               <div className="flex gap-2">
                 <Button asChild variant="outline" size="sm">

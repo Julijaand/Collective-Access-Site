@@ -10,14 +10,17 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { useUIStore } from '@/lib/stores/uiStore'
+import { useQueryClient } from '@tanstack/react-query'
 
 export function Header() {
   const router = useRouter()
   const { user, logout } = useAuthStore()
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+  const queryClient = useQueryClient()
 
   const handleLogout = async () => {
     await logout()
+    queryClient.clear()
     router.push('/login')
   }
 

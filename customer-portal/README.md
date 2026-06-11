@@ -322,8 +322,8 @@ kubectl apply -f saas-backend/k8s/saas-backend-secrets.yaml
 ```bash
 # Backend
 cd saas-backend
-docker build -t julijaand/ca-saas-backend:latest .
-docker push julijaand/ca-saas-backend:latest
+docker build -t julijaand/saas-backend:latest .
+docker push julijaand/saas-backend:latest
 kubectl apply -f k8s/deployment.yaml
 kubectl rollout restart deployment/saas-backend -n ca-system
 

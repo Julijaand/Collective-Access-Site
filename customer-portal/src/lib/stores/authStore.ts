@@ -57,6 +57,8 @@ export const useAuthStore = create<AuthState>()(
         await authApi.logout()
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
+        localStorage.removeItem('ca_portal_visited_dashboard')
+        localStorage.removeItem('ca_portal_visited')
         set({ user: null, isAuthenticated: false })
       },
 

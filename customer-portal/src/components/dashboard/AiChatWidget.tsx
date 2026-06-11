@@ -32,12 +32,10 @@ export function AiChatWidget() {
   const { data: tenants } = useTenants()
   const tenantId = tenants?.[0]?.id
 
-  // Scroll to bottom whenever messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, open])
 
-  // Focus textarea when opened
   useEffect(() => {
     if (open) setTimeout(() => textareaRef.current?.focus(), 100)
   }, [open])
@@ -50,13 +48,11 @@ export function AiChatWidget() {
     setMessages((prev) => [...prev, { role: 'user', content: question }])
     setLoading(true)
 
-    // Add an empty assistant message that we'll fill in token by token
     setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
 
     try {
       await chatApi.sendStream(
         { message: question, tenant_id: tenantId },
-        // onToken — append each token to the last message
         (token) => {
           setMessages((prev) => {
             const updated = [...prev]
@@ -67,23 +63,19 @@ export function AiChatWidget() {
             return updated
           })
         },
-        // onDone — attach sources
         (sources) => {
           setMessages((prev) => {
             const updated = [...prev]
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              sources,
-            }
+            updated[updated.length - 1] = { ...updated[updated.length - 1], sources }
             return updated
           })
           setLoading(false)
         },
-        // onError
         (errType) => {
-          const content = errType === 'session_expired'
-            ? 'Your session has expired. Please [log in again](/login) to continue.'
-            : 'Sorry, the AI assistant is currently unavailable. Please [open a support ticket](/support) and our team will help you.'
+          const content =
+            errType === 'session_expired'
+              ? 'Your session has expired. Please [log in again](/login) to continue.'
+              : 'Sorry, the AI assistant is currently unavailable. Please [open a support ticket](/support) and our team will help you.'
           setMessages((prev) => {
             const updated = [...prev]
             updated[updated.length - 1] = { role: 'assistant', content }
@@ -137,7 +129,6 @@ export function AiChatWidget() {
               <Bot className="h-5 w-5" />
               <div>
                 <p className="text-sm font-semibold leading-none">CA Assistant</p>
-                <p className="text-xs opacity-70">Powered by Ollama + RAG</p>
               </div>
             </div>
             <button onClick={() => setOpen(false)} aria-label="Close">
@@ -155,7 +146,6 @@ export function AiChatWidget() {
                   msg.role === 'user' ? 'flex-row-reverse' : 'flex-row',
                 )}
               >
-                {/* Avatar */}
                 <div
                   className={cn(
                     'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
@@ -171,7 +161,6 @@ export function AiChatWidget() {
                   )}
                 </div>
 
-                {/* Bubble */}
                 <div className="max-w-[260px] space-y-1">
                   <div
                     className={cn(
@@ -183,7 +172,6 @@ export function AiChatWidget() {
                   >
                     {msg.content}
                   </div>
-                  {/* Sources */}
                   {msg.sources && msg.sources.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {msg.sources.map((s, si) => (
@@ -197,7 +185,6 @@ export function AiChatWidget() {
               </div>
             ))}
 
-            {/* Typing indicator — only while the streaming reply hasn't started yet */}
             {loading && messages[messages.length - 1]?.content === '' && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted">
@@ -210,7 +197,7 @@ export function AiChatWidget() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Suggestions (shown only on welcome state) */}
+          {/* Suggestions */}
           {messages.length === 1 && (
             <div className="px-3 pb-2 flex flex-wrap gap-1.5">
               {SUGGESTIONS.map((s) => (
